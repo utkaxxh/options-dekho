@@ -66,7 +66,7 @@ This app is optimized for Vercel deployment with serverless functions.
 
 **Detailed Instructions:** See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete deployment guide.
 
-**Live Demo:** [https://options-realtime.vercel.app](https://options-realtime.vercel.app) *(if deployed)*
+**Live Demo:** [Deploy to see live version](https://options-dekho.vercel.app) *(Deployment in progress)*
 
 ### Key Features for Production:
 - ✅ Serverless API functions
