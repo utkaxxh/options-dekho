@@ -1,21 +1,23 @@
-# Indian Options Premium Tracker 📊
+# Options Dekho - Real-Time Indian Options Premium Tracker 📊
 
-A real-time web application for tracking options premium data for top Indian stocks. Built with React, TypeScript, and Node.js with WebSocket support for live data updates.
+A modern web application for tracking real-time premium data for Indian stock options, with a focus on put options pricing across different strike prices. Features stock search, live data updates, and Zerodha Kite API integration.
 
 ![Options Premium Tracker](https://img.shields.io/badge/Status-Live-brightgreen)
 ![React](https://img.shields.io/badge/React-19.1.0-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5.3-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-20.10.0-green)
+![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black)
 
 ## 🚀 Features
 
-- **Real-time Data**: Live options premium updates every 2 seconds
-- **Top Indian Stocks**: Track RELIANCE, TCS, HDFCBANK, INFY, ICICIBANK
-- **Put Options Focus**: Specialized for put option premium tracking
+- **Real-time Stock Data**: Live prices for 15+ popular Indian stocks
+- **Stock Search**: Search and filter stocks (RELIANCE, TCS, HDFC, INFY, etc.)
+- **Options Premium Tracking**: View put options data with strike prices
+- **Live Updates**: Real-time data updates every 5-10 seconds
+- **Zerodha Kite API**: Built-in support for real market data
 - **Greeks Calculation**: Delta, Gamma, Theta, Vega for each option
-- **Interactive UI**: Sortable tables, filters, and responsive design
-- **WebSocket Connection**: Real-time data streaming
-- **Modern Design**: Glassmorphism UI with beautiful gradients
+- **Modern UI**: Glassmorphism design with responsive layout
+- **Vercel Deployment**: Production-ready serverless architecture
 
 ## 🛠️ Tech Stack
 
@@ -23,35 +25,108 @@ A real-time web application for tracking options premium data for top Indian sto
 - **React 19** with TypeScript
 - **Vite** for fast development
 - **Lucide React** for icons
-- **Custom CSS** with modern design patterns
+- **Custom CSS** with glassmorphism design
 
 ### Backend
 - **Node.js** with Express
 - **TypeScript** for type safety
-- **WebSocket** for real-time communication
-- **Mock Data Generation** with Black-Scholes inspired calculations
+- **Vercel Serverless Functions** for production
+- **Zerodha Kite Connect SDK** for real market data
+- **Mock Data Generation** with Black-Scholes calculations
+
+## 🌐 Live Demo
+
+**Production**: [https://options-dekho.vercel.app](https://options-dekho.vercel.app)
+**Repository**: [https://github.com/utkaxxh/options-dekho](https://github.com/utkaxxh/options-dekho)
 
 ## 📦 Installation & Development
 
-1. **Install dependencies**
+### Prerequisites
+- Node.js v20.10.0 or higher
+- npm or yarn
+- Git
+
+### Local Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/utkaxxh/options-dekho.git
+   cd options-dekho
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. **Start development servers**
+3. **Environment Setup (Optional - for real Kite API data)**
    ```bash
-   # Start both frontend and backend (local development)
-   npm run start:all
+   cp .env.example .env
+   ```
    
-   # Or start individually
-   npm run server:dev  # Backend on port 3001
-   npm run dev         # Frontend on port 5173
+   Edit `.env` and add your Zerodha Kite Connect credentials:
+   ```env
+   KITE_API_KEY=your_api_key_here
+   KITE_API_SECRET=your_api_secret_here
+   KITE_REDIRECT_URL=http://localhost:3000/auth/callback
    ```
 
-3. **Build for production**
+4. **Start development server**
    ```bash
-   npm run build
+   npm run dev         # Frontend on port 5173
    ```
+   
+   For local backend development:
+   ```bash
+   npm run server:dev  # Backend on port 3001
+   npm run start:all   # Both frontend and backend
+   ```
+
+   ```
+
+5. **Open in browser**
+   - Frontend: http://localhost:5173
+   - The app will use mock data by default
+
+## 🔑 Zerodha Kite API Setup (Optional)
+
+To use real market data instead of mock data:
+
+1. **Create a Kite Connect App**
+   - Visit [Kite Connect Developer Console](https://developers.kite.trade/)
+   - Create a new app and get your API Key and Secret
+   - Set redirect URL to `http://localhost:3000/auth/callback` for development
+
+2. **Configure Environment Variables**
+   - Copy `.env.example` to `.env`
+   - Add your Kite API credentials
+
+3. **Authentication Flow**
+   - The app includes authentication routes at `/api/auth`
+   - Visit `/api/auth?action=login` to get the Kite login URL
+   - Complete authentication on Zerodha's website
+   - The callback will handle the session setup
+
+## 🏗️ Project Structure
+
+```
+options-realtime/
+├── src/                    # React frontend source
+│   ├── components/         # React components
+│   ├── types.ts           # TypeScript type definitions
+│   ├── App.tsx            # Main app component
+│   └── App.css            # Styling
+├── api/                   # Vercel serverless functions
+│   ├── stocks.ts          # Stock data API
+│   ├── options.ts         # Options data API
+│   └── auth.ts            # Kite authentication
+├── server/                # Server utilities and services
+│   ├── kiteService.ts     # Kite Connect integration
+│   ├── config.ts          # Configuration management
+│   └── mockData.ts        # Mock data generation
+├── public/                # Static assets
+└── dist/                  # Build output
+```
 
 ## 🚀 Deployment
 
@@ -60,13 +135,54 @@ A real-time web application for tracking options premium data for top Indian sto
 This app is optimized for Vercel deployment with serverless functions.
 
 **Quick Deploy:**
-1. Push your code to GitHub
+1. Fork/Clone the repository
 2. Connect your repository to [Vercel](https://vercel.com)
-3. Deploy automatically
+3. Add environment variables (if using Kite API):
+   - `KITE_API_KEY`
+   - `KITE_API_SECRET`
+   - `KITE_REDIRECT_URL`
+4. Deploy automatically
 
-**Detailed Instructions:** See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete deployment guide.
+**Live Demo:** [https://options-dekho.vercel.app](https://options-dekho.vercel.app)
 
-**Live Demo:** [Deploy to see live version](https://options-dekho.vercel.app) *(Deployment in progress)*
+## 📱 Usage
+
+### Stock Search & Selection
+1. **Browse Stocks**: View top 5 Indian stocks by default
+2. **Search Functionality**: Use the search bar to find specific stocks
+   - Search by symbol (e.g., "RELIANCE", "TCS")
+   - Search by company name (e.g., "Tata Consultancy", "HDFC Bank")
+   - Real-time filtering as you type
+3. **Stock Selection**: Click on any stock card to view its options data
+
+### Options Analysis
+1. **Live Data**: Stock prices update every 10 seconds
+2. **Options Display**: View put options for selected stock
+3. **Strike Price Analysis**: Compare premiums across different strikes
+4. **Sorting & Filtering**: Sort by strike price, premium, volume, etc.
+5. **Greeks Information**: View Delta, Gamma, Theta, Vega for each option
+
+### Data Sources
+- **Default Mode**: Uses mock data with realistic price fluctuations
+- **Kite API Mode**: Real market data from Zerodha (requires authentication)
+
+## 🔧 Configuration
+
+### Customizing Stock List
+Edit `INDIAN_STOCKS` array in `api/stocks.ts`:
+```typescript
+const INDIAN_STOCKS: IndianStock[] = [
+  { symbol: 'RELIANCE', name: 'Reliance Industries Ltd', currentPrice: 2450.75 },
+  { symbol: 'TCS', name: 'Tata Consultancy Services', currentPrice: 3890.50 },
+  // Add more stocks...
+];
+```
+
+### Update Intervals
+Modify polling intervals in `src/App.tsx`:
+```typescript
+const interval = setInterval(fetchOptionsData, 5000); // 5 seconds
+```
 
 ### Key Features for Production:
 - ✅ Serverless API functions
