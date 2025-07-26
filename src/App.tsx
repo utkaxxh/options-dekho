@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Clock, BarChart3 } from 'lucide-react';
+import { RefreshCw, Clock, BarChart3, Search, X } from 'lucide-react';
 import StockCard from './components/StockCard';
 import OptionsTable from './components/OptionsTable';
 import type { IndianStock, OptionsData } from './types';
@@ -11,27 +11,38 @@ function App() {
   const [optionsData, setOptionsData] = useState<Record<string, OptionsData>>({});
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [isSearching, setIsSearching] = useState(false);
 
   // API base URL - will use relative paths for Vercel deployment
   const API_BASE = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
 
+  // Fetch stocks data with optional search
+  const fetchStocks = async (search?: string) => {
+    try {
+      setIsSearching(!!search);
+      const searchParam = search ? `?search=${encodeURIComponent(search)}` : '';
+      const response = await fetch(`${API_BASE}/api/stocks${searchParam}`);
+      const result = await response.json();
+      
+      // Handle both old format (array) and new format (object with data property)
+      const stockData = Array.isArray(result) ? result : result.data || [];
+      
+      setStocks(stockData);
+      if (stockData.length > 0 && !selectedStock) {
+        setSelectedStock(stockData[0].symbol);
+      }
+      setIsConnected(true);
+    } catch (err) {
+      console.error('Failed to fetch stocks:', err);
+      setIsConnected(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   // Fetch initial stocks data
   useEffect(() => {
-    const fetchStocks = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/stocks`);
-        const data = await response.json();
-        setStocks(data);
-        if (data.length > 0) {
-          setSelectedStock(data[0].symbol);
-        }
-        setIsConnected(true);
-      } catch (err) {
-        console.error('Failed to fetch stocks:', err);
-        setIsConnected(false);
-      }
-    };
-
     fetchStocks();
   }, [API_BASE]);
 
@@ -68,8 +79,12 @@ function App() {
     const fetchStockUpdates = async () => {
       try {
         const response = await fetch(`${API_BASE}/api/stocks`);
-        const data = await response.json();
-        setStocks(data);
+        const result = await response.json();
+        
+        // Handle both old format (array) and new format (object with data property)
+        const stockData = Array.isArray(result) ? result : result.data || [];
+        
+        setStocks(stockData);
         setIsConnected(true);
       } catch (err) {
         console.error('Failed to fetch stock updates:', err);
@@ -109,7 +124,44 @@ function App() {
 
       <main className="app-main">
         <section className="stocks-section">
-          <h2>Top 5 Indian Stocks</h2>
+          <div className="section-header-with-search">
+            <h2>{searchTerm ? `Search Results` : 'Top 5 Indian Stocks'}</h2>
+            <div className="search-container">
+              <div className="search-input-wrapper">
+                <Search className="search-icon" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search stocks (e.g., RELIANCE, TCS, HDFC)"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      fetchStocks(searchTerm);
+                    }
+                  }}
+                  className="search-input"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => {
+                      setSearchTerm('');
+                      fetchStocks();
+                    }}
+                    className="clear-search"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => fetchStocks(searchTerm)}
+                disabled={isSearching}
+                className="search-button"
+              >
+                {isSearching ? <RefreshCw className="spinning" size={16} /> : 'Search'}
+              </button>
+            </div>
+          </div>
           <div className="stocks-grid">
             {stocks.map((stock) => (
               <StockCard

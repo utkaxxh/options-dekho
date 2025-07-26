@@ -480,3 +480,123 @@ body {
     font-size: 0.75rem;
   }
 }
+
+/* Search Functionality */
+.section-header-with-search {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.section-header-with-search h2 {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.search-container {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  color: white;
+  font-size: 0.875rem;
+  width: 300px;
+  transition: all 0.2s ease;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+
+.clear-search {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: color 0.2s ease;
+}
+
+.clear-search:hover {
+  color: white;
+}
+
+.search-button {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  border: none;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 80px;
+  justify-content: center;
+}
+
+.search-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
+}
+
+.search-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .section-header-with-search {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .search-container {
+    width: 100%;
+    flex-direction: column;
+  }
+  
+  .search-input {
+    width: 100%;
+  }
+  
+  .search-button {
+    width: 100%;
+  }
+}
