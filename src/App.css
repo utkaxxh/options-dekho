@@ -1,0 +1,482 @@
+/* Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #333;
+  min-height: 100vh;
+}
+
+/* App Container */
+.app {
+  min-height: 100vh;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+}
+
+/* Header */
+.app-header {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 1rem 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.title-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-icon {
+  color: #4f46e5;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.app-header h1 {
+  color: white;
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.status-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.connection-status.connected {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.connection-status.disconnected {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s infinite;
+}
+
+.last-update {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+}
+
+/* Main Content */
+.app-main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Stocks Section */
+.stocks-section h2 {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.stocks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Stock Cards */
+.stock-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.stock-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+
+.stock-card.selected {
+  border-color: #4f46e5;
+  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
+  background: rgba(255, 255, 255, 1);
+}
+
+.stock-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.stock-symbol {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.price-change {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+}
+
+.price-change.positive {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.price-change.negative {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.stock-name {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.stock-price {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.currency {
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.amount {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.options-info {
+  color: #4f46e5;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Options Section */
+.options-section {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.section-header h2 {
+  color: #1f2937;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.current-price {
+  font-size: 1.125rem;
+  color: #6b7280;
+}
+
+.current-price .price {
+  font-weight: 700;
+  color: #1f2937;
+  font-size: 1.25rem;
+}
+
+/* Table Controls */
+.table-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.expiry-filter {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.table-info {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Options Table */
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.options-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.options-table th {
+  background: #f9fafb;
+  padding: 1rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.options-table th.sortable {
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.options-table th.sortable:hover {
+  background: #f3f4f6;
+}
+
+.options-table td {
+  padding: 0.875rem 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.options-table tr:hover {
+  background: #f9fafb;
+}
+
+/* Table Cell Styles */
+.strike-price {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.moneyness {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.moneyness.itm {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.moneyness.atm {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+.moneyness.otm {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+}
+
+.premium {
+  font-weight: 600;
+  color: #059669;
+}
+
+.volume, .open-interest {
+  color: #6b7280;
+}
+
+.iv {
+  font-weight: 500;
+  color: #7c3aed;
+}
+
+.delta.negative {
+  color: #dc2626;
+}
+
+.delta.positive {
+  color: #059669;
+}
+
+.theta.negative {
+  color: #dc2626;
+}
+
+.theta.positive {
+  color: #059669;
+}
+
+.gamma, .vega {
+  color: #6b7280;
+}
+
+.expiry {
+  font-weight: 500;
+  color: #4f46e5;
+}
+
+/* Loading Section */
+.loading-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  color: #6b7280;
+}
+
+.loading-section p {
+  margin-top: 1rem;
+  font-size: 1.125rem;
+}
+
+.no-data {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: #6b7280;
+  font-size: 1.125rem;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .app-main {
+    padding: 1rem;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .app-header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .stocks-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .table-controls {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .options-table th,
+  .options-table td {
+    padding: 0.5rem 0.375rem;
+    font-size: 0.75rem;
+  }
+}
