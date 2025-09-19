@@ -48,7 +48,25 @@
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">Calculate Premium</button>
                     <button type="button" id="fetchLiveData" class="btn btn-secondary">Fetch Live Data</button>
+                    <button type="button" id="toggleAutoRefresh" class="btn btn-success">Start Auto Refresh</button>
                     <button type="reset" class="btn btn-outline">Clear</button>
+                </div>
+
+                <div class="live-controls" style="display: none;" id="liveControls">
+                    <div class="control-group">
+                        <label for="refreshInterval">Refresh Interval (seconds):</label>
+                        <select id="refreshInterval">
+                            <option value="5">5 seconds</option>
+                            <option value="10" selected>10 seconds</option>
+                            <option value="15">15 seconds</option>
+                            <option value="30">30 seconds</option>
+                            <option value="60">1 minute</option>
+                        </select>
+                    </div>
+                    <div class="live-status">
+                        <span id="liveStatus" class="status-indicator">●</span>
+                        <span id="lastUpdated">Last updated: Never</span>
+                    </div>
                 </div>
             </form>
         </div>

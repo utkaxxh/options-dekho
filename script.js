@@ -6,7 +6,18 @@ class OptionsPremiumCalculator {
         this.resultsSection = document.getElementById('resultsSection');
         this.liveDataSection = document.getElementById('liveDataSection');
         this.fetchLiveDataBtn = document.getElementById('fetchLiveData');
+        this.toggleAutoRefreshBtn = document.getElementById('toggleAutoRefresh');
+        this.liveControls = document.getElementById('liveControls');
+        this.refreshIntervalSelect = document.getElementById('refreshInterval');
+        this.liveStatus = document.getElementById('liveStatus');
+        this.lastUpdated = document.getElementById('lastUpdated');
         this.kiteAPI = new KiteAPIIntegration();
+        
+        // Auto-refresh properties
+        this.autoRefreshInterval = null;
+        this.isAutoRefreshing = false;
+        this.currentStockSymbol = null;
+        this.lastPremiumData = {};
         
         this.initializeEventListeners();
         this.setDefaultExpiryDate();
@@ -17,6 +28,8 @@ class OptionsPremiumCalculator {
         this.form.addEventListener('submit', (e) => this.handleFormSubmit(e));
         this.form.addEventListener('reset', () => this.handleFormReset());
         this.fetchLiveDataBtn.addEventListener('click', () => this.fetchLiveData());
+        this.toggleAutoRefreshBtn.addEventListener('click', () => this.toggleAutoRefresh());
+        this.refreshIntervalSelect.addEventListener('change', () => this.updateRefreshInterval());
         
         // Real-time calculation on input change
         const inputs = this.form.querySelectorAll('input');
@@ -56,6 +69,14 @@ class OptionsPremiumCalculator {
         this.hideResults();
         this.setDefaultExpiryDate();
         this.clearErrors();
+        
+        // Stop auto-refresh when form is reset
+        if (this.isAutoRefreshing) {
+            this.stopAutoRefresh();
+        }
+        
+        this.currentStockSymbol = null;
+        this.lastPremiumData = {};
     }
 
     validateForm() {
@@ -195,6 +216,7 @@ class OptionsPremiumCalculator {
     hideResults() {
         this.resultsSection.style.display = 'none';
         this.liveDataSection.style.display = 'none';
+        this.liveControls.style.display = 'none';
     }
 
     showError(fieldId, message) {
@@ -249,22 +271,187 @@ class OptionsPremiumCalculator {
             return;
         }
 
-        this.fetchLiveDataBtn.innerHTML = '<span class="loading"></span> Fetching...';
-        this.fetchLiveDataBtn.disabled = true;
+        this.currentStockSymbol = stockSymbol;
+        this.updateFetchButton(true);
 
         try {
             // Use the integrated Kite API
             const optionsData = await this.kiteAPI.getOptionsChain(stockSymbol);
             this.displayOptionsChain(optionsData);
             this.liveDataSection.style.display = 'block';
+            this.liveControls.style.display = 'flex';
+            this.updateLastRefreshedTime();
             this.showAlert('Live data fetched successfully!', 'success');
+            
+            // Store the data for comparison in auto-refresh
+            this.lastPremiumData = optionsData;
         } catch (error) {
             console.error('Error fetching live data:', error);
             this.showAlert('Failed to fetch live data. Please try again.', 'danger');
         } finally {
+            this.updateFetchButton(false);
+        }
+    }
+
+    toggleAutoRefresh() {
+        if (this.isAutoRefreshing) {
+            this.stopAutoRefresh();
+        } else {
+            this.startAutoRefresh();
+        }
+    }
+
+    startAutoRefresh() {
+        if (!this.currentStockSymbol) {
+            this.showAlert('Please fetch live data first before starting auto-refresh', 'warning');
+            return;
+        }
+
+        this.isAutoRefreshing = true;
+        this.toggleAutoRefreshBtn.textContent = 'Stop Auto Refresh';
+        this.toggleAutoRefreshBtn.classList.add('active');
+        this.liveStatus.classList.add('live');
+        this.liveStatus.classList.remove('stopped');
+        
+        const intervalSeconds = parseInt(this.refreshIntervalSelect.value);
+        this.autoRefreshInterval = setInterval(() => {
+            this.performBackgroundUpdate();
+        }, intervalSeconds * 1000);
+        
+        this.showAlert(`Auto-refresh started (every ${intervalSeconds} seconds)`, 'success');
+    }
+
+    stopAutoRefresh() {
+        this.isAutoRefreshing = false;
+        this.toggleAutoRefreshBtn.textContent = 'Start Auto Refresh';
+        this.toggleAutoRefreshBtn.classList.remove('active');
+        this.liveStatus.classList.remove('live');
+        this.liveStatus.classList.add('stopped');
+        
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+            this.autoRefreshInterval = null;
+        }
+        
+        this.showAlert('Auto-refresh stopped', 'success');
+    }
+
+    updateRefreshInterval() {
+        if (this.isAutoRefreshing) {
+            // Restart with new interval
+            this.stopAutoRefresh();
+            setTimeout(() => this.startAutoRefresh(), 100);
+        }
+    }
+
+    async performBackgroundUpdate() {
+        if (!this.currentStockSymbol || !this.isAutoRefreshing) return;
+
+        try {
+            this.liveStatus.classList.add('updating');
+            this.liveStatus.classList.remove('live');
+            
+            // Fetch new data
+            const newData = await this.kiteAPI.getOptionsChain(this.currentStockSymbol);
+            
+            // Compare with previous data and highlight changes
+            this.updateOptionsChainWithHighlights(newData);
+            this.updateLastRefreshedTime();
+            
+            // Update calculations if form is filled
+            if (this.validateForm()) {
+                this.calculatePremium();
+            }
+            
+            this.lastPremiumData = newData;
+        } catch (error) {
+            console.error('Background update failed:', error);
+            // Don't show alert for background failures to avoid spamming
+        } finally {
+            this.liveStatus.classList.remove('updating');
+            this.liveStatus.classList.add('live');
+        }
+    }
+
+    updateOptionsChainWithHighlights(newData) {
+        const optionsChainDiv = document.getElementById('optionsChain');
+        const rows = optionsChainDiv.querySelectorAll('tbody tr');
+        
+        // Update the current price
+        const currentPriceDiv = optionsChainDiv.querySelector('.alert-success');
+        if (currentPriceDiv) {
+            const oldPrice = this.lastPremiumData.underlying_price || 0;
+            const newPrice = newData.underlying_price;
+            
+            currentPriceDiv.innerHTML = `Current Price of ${newData.symbol}: ${this.formatCurrency(newPrice)}`;
+            
+            if (newPrice !== oldPrice) {
+                currentPriceDiv.classList.add('value-updated');
+                setTimeout(() => currentPriceDiv.classList.remove('value-updated'), 1000);
+            }
+        }
+        
+        // Update table rows with new data
+        newData.options.forEach((newOption, index) => {
+            if (rows[index]) {
+                const row = rows[index];
+                const cells = row.children;
+                
+                const oldOption = this.lastPremiumData.options && this.lastPremiumData.options[index];
+                
+                // Update call OI
+                cells[0].textContent = newOption.call.oi.toLocaleString();
+                if (oldOption && newOption.call.oi !== oldOption.call.oi) {
+                    cells[0].classList.add('value-updated');
+                    setTimeout(() => cells[0].classList.remove('value-updated'), 1000);
+                }
+                
+                // Update call premium
+                cells[1].textContent = this.formatCurrency(newOption.call.last_price);
+                if (oldOption && newOption.call.last_price !== oldOption.call.last_price) {
+                    cells[1].classList.add('value-updated');
+                    setTimeout(() => cells[1].classList.remove('value-updated'), 1000);
+                }
+                
+                // Update put premium
+                cells[3].textContent = this.formatCurrency(newOption.put.last_price);
+                if (oldOption && newOption.put.last_price !== oldOption.put.last_price) {
+                    cells[3].classList.add('value-updated');
+                    setTimeout(() => cells[3].classList.remove('value-updated'), 1000);
+                }
+                
+                // Update put OI
+                cells[4].textContent = newOption.put.oi.toLocaleString();
+                if (oldOption && newOption.put.oi !== oldOption.put.oi) {
+                    cells[4].classList.add('value-updated');
+                    setTimeout(() => cells[4].classList.remove('value-updated'), 1000);
+                }
+                
+                // Update click handler with new data
+                row.onclick = () => {
+                    document.getElementById('strikePrice').value = newOption.strike;
+                    document.getElementById('premiumPerShare').value = newOption.put.last_price.toFixed(2);
+                    this.validateAndCalculate();
+                    this.showAlert(`Selected strike ${this.formatCurrency(newOption.strike)} with premium ${this.formatCurrency(newOption.put.last_price)}`, 'success');
+                };
+            }
+        });
+    }
+
+    updateFetchButton(isLoading) {
+        if (isLoading) {
+            this.fetchLiveDataBtn.innerHTML = '<span class="loading"></span> Fetching...';
+            this.fetchLiveDataBtn.disabled = true;
+        } else {
             this.fetchLiveDataBtn.innerHTML = 'Fetch Live Data';
             this.fetchLiveDataBtn.disabled = false;
         }
+    }
+
+    updateLastRefreshedTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString();
+        this.lastUpdated.textContent = `Last updated: ${timeString}`;
     }
 
     displayOptionsChain(data) {
