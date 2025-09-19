@@ -2,7 +2,7 @@
 
 class OptionsPremiumCalculator {
     constructor() {
-        this.form = document.getElementById('premiumForm');
+        this.formContainer = document.querySelector('.calculator-section');
         this.resultsSection = document.getElementById('resultsSection');
         this.liveDataSection = document.getElementById('liveDataSection');
         this.fetchLiveDataBtn = document.getElementById('fetchLiveData');
@@ -25,17 +25,23 @@ class OptionsPremiumCalculator {
     }
 
     initializeEventListeners() {
-        this.form.addEventListener('submit', (e) => this.handleFormSubmit(e));
-        this.form.addEventListener('reset', () => this.handleFormReset());
         this.fetchLiveDataBtn.addEventListener('click', () => this.fetchLiveData());
         this.toggleAutoRefreshBtn.addEventListener('click', () => this.toggleAutoRefresh());
         this.refreshIntervalSelect.addEventListener('change', () => this.updateRefreshInterval());
         
-        // Real-time calculation on input change
-        const inputs = this.form.querySelectorAll('input');
+        // Auto-calculate when relevant inputs change
+        const inputs = this.formContainer.querySelectorAll('input');
         inputs.forEach(input => {
-            input.addEventListener('input', () => this.validateAndCalculate());
+            input.addEventListener('input', () => {
+                if (this.lastPremiumData.options && this.validateInputs()) {
+                    this.calculatePremiumFromLiveData();
+                }
+            });
         });
+
+        // Reset functionality
+        const clearBtn = this.formContainer.querySelector('button[type="reset"]');
+        clearBtn.addEventListener('click', () => this.handleFormReset());
     }
 
     setDefaultExpiryDate() {
@@ -58,28 +64,12 @@ class OptionsPremiumCalculator {
     }
 
     handleFormSubmit(e) {
+        // This method is no longer needed since we removed the form submit
+        // Keeping for compatibility but will not be called
         e.preventDefault();
-        if (this.validateForm()) {
-            this.calculatePremium();
-            this.showResults();
-        }
     }
 
-    handleFormReset() {
-        this.hideResults();
-        this.setDefaultExpiryDate();
-        this.clearErrors();
-        
-        // Stop auto-refresh when form is reset
-        if (this.isAutoRefreshing) {
-            this.stopAutoRefresh();
-        }
-        
-        this.currentStockSymbol = null;
-        this.lastPremiumData = {};
-    }
-
-    validateForm() {
+    validateInputs() {
         let isValid = true;
         this.clearErrors();
 
@@ -88,7 +78,6 @@ class OptionsPremiumCalculator {
             { id: 'strikePrice', message: 'Strike price must be greater than 0' },
             { id: 'lotSize', message: 'Lot size must be greater than 0' },
             { id: 'expiryDate', message: 'Expiry date is required' },
-            { id: 'premiumPerShare', message: 'Premium per share must be greater than 0' },
             { id: 'numberOfLots', message: 'Number of lots must be at least 1' }
         ];
 
@@ -115,26 +104,65 @@ class OptionsPremiumCalculator {
         return isValid;
     }
 
+    handleFormReset() {
+        this.hideResults();
+        this.setDefaultExpiryDate();
+        this.clearErrors();
+        
+        // Stop auto-refresh when form is reset
+        if (this.isAutoRefreshing) {
+            this.stopAutoRefresh();
+        }
+        
+        this.currentStockSymbol = null;
+        this.lastPremiumData = {};
+    }
+
+    validateForm() {
+        // Redirect to the new validation method for backward compatibility
+        return this.validateInputs();
+    }
+
     validateAndCalculate() {
-        const inputs = this.form.querySelectorAll('input[required]');
-        let allFilled = true;
-
-        inputs.forEach(input => {
-            if (!input.value.trim()) {
-                allFilled = false;
-            }
-        });
-
-        if (allFilled && this.validateForm()) {
-            this.calculatePremium();
+        // This method is updated to work with live data
+        if (this.lastPremiumData.options && this.validateInputs()) {
+            this.calculatePremiumFromLiveData();
             this.showResults();
         }
     }
 
-    calculatePremium() {
+    calculatePremiumFromLiveData() {
+        if (!this.lastPremiumData.options) {
+            this.showAlert('Please fetch live data first', 'warning');
+            return;
+        }
+
         const formData = this.getFormData();
-        const calculations = this.performCalculations(formData);
+        
+        // Find the matching strike price in live data
+        const matchingOption = this.lastPremiumData.options.find(option => 
+            Math.abs(option.strike - formData.strikePrice) < 0.01
+        );
+
+        if (!matchingOption) {
+            this.showAlert(`Strike price ${formData.strikePrice} not found in live data. Please select from the options chain.`, 'warning');
+            return;
+        }
+
+        // Use the live premium data for calculations
+        const premiumPerShare = matchingOption.put.last_price;
+        const calculations = this.performCalculations({
+            ...formData,
+            premiumPerShare: premiumPerShare
+        });
+        
         this.updateResultsDisplay(calculations);
+        this.showResults();
+    }
+
+    calculatePremium() {
+        // Redirect to the new method for backward compatibility
+        this.calculatePremiumFromLiveData();
     }
 
     getFormData() {
@@ -143,7 +171,6 @@ class OptionsPremiumCalculator {
             strikePrice: parseFloat(document.getElementById('strikePrice').value),
             lotSize: parseInt(document.getElementById('lotSize').value),
             expiryDate: new Date(document.getElementById('expiryDate').value),
-            premiumPerShare: parseFloat(document.getElementById('premiumPerShare').value),
             numberOfLots: parseInt(document.getElementById('numberOfLots').value)
         };
     }
@@ -233,10 +260,10 @@ class OptionsPremiumCalculator {
     }
 
     clearErrors() {
-        const errorElements = this.form.querySelectorAll('.error');
+        const errorElements = this.formContainer.querySelectorAll('.error');
         errorElements.forEach(element => element.remove());
         
-        const errorInputs = this.form.querySelectorAll('input.error');
+        const errorInputs = this.formContainer.querySelectorAll('input.error');
         errorInputs.forEach(input => input.classList.remove('error'));
     }
 
@@ -281,7 +308,13 @@ class OptionsPremiumCalculator {
             this.liveDataSection.style.display = 'block';
             this.liveControls.style.display = 'flex';
             this.updateLastRefreshedTime();
-            this.showAlert('Live data fetched successfully!', 'success');
+            
+            // Automatically calculate premium if form is valid
+            if (this.validateInputs()) {
+                this.calculatePremiumFromLiveData();
+            }
+            
+            this.showAlert('Live data fetched successfully! Click on any strike price to calculate premium.', 'success');
             
             // Store the data for comparison in auto-refresh
             this.lastPremiumData = optionsData;
@@ -359,8 +392,8 @@ class OptionsPremiumCalculator {
             this.updateLastRefreshedTime();
             
             // Update calculations if form is filled
-            if (this.validateForm()) {
-                this.calculatePremium();
+            if (this.validateInputs()) {
+                this.calculatePremiumFromLiveData();
             }
             
             this.lastPremiumData = newData;
@@ -430,8 +463,7 @@ class OptionsPremiumCalculator {
                 // Update click handler with new data
                 row.onclick = () => {
                     document.getElementById('strikePrice').value = newOption.strike;
-                    document.getElementById('premiumPerShare').value = newOption.put.last_price.toFixed(2);
-                    this.validateAndCalculate();
+                    this.calculatePremiumFromLiveData();
                     this.showAlert(`Selected strike ${this.formatCurrency(newOption.strike)} with premium ${this.formatCurrency(newOption.put.last_price)}`, 'success');
                 };
             }
@@ -496,8 +528,12 @@ class OptionsPremiumCalculator {
             row.addEventListener('click', () => {
                 const option = data.options[index];
                 document.getElementById('strikePrice').value = option.strike;
-                document.getElementById('premiumPerShare').value = option.put.last_price.toFixed(2);
-                this.validateAndCalculate();
+                
+                // Auto-calculate if other fields are filled
+                if (this.validateInputs()) {
+                    this.calculatePremiumFromLiveData();
+                }
+                
                 this.showAlert(`Selected strike ${this.formatCurrency(option.strike)} with premium ${this.formatCurrency(option.put.last_price)}`, 'success');
             });
         });
