@@ -1,0 +1,389 @@
+// Options Premium Calculator JavaScript
+
+class OptionsPremiumCalculator {
+    constructor() {
+        this.form = document.getElementById('premiumForm');
+        this.resultsSection = document.getElementById('resultsSection');
+        this.liveDataSection = document.getElementById('liveDataSection');
+        this.fetchLiveDataBtn = document.getElementById('fetchLiveData');
+        this.kiteAPI = new KiteAPIIntegration();
+        
+        this.initializeEventListeners();
+        this.setDefaultExpiryDate();
+        this.checkKiteLoginStatus();
+    }
+
+    initializeEventListeners() {
+        this.form.addEventListener('submit', (e) => this.handleFormSubmit(e));
+        this.form.addEventListener('reset', () => this.handleFormReset());
+        this.fetchLiveDataBtn.addEventListener('click', () => this.fetchLiveData());
+        
+        // Real-time calculation on input change
+        const inputs = this.form.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('input', () => this.validateAndCalculate());
+        });
+    }
+
+    setDefaultExpiryDate() {
+        const expiryInput = document.getElementById('expiryDate');
+        const today = new Date();
+        const nextThursday = this.getNextThursday(today);
+        expiryInput.value = nextThursday.toISOString().split('T')[0];
+        expiryInput.min = today.toISOString().split('T')[0];
+    }
+
+    getNextThursday(date) {
+        const result = new Date(date);
+        const daysUntilThursday = (4 - result.getDay() + 7) % 7;
+        if (daysUntilThursday === 0 && result.getDay() === 4) {
+            result.setDate(result.getDate() + 7);
+        } else {
+            result.setDate(result.getDate() + daysUntilThursday);
+        }
+        return result;
+    }
+
+    handleFormSubmit(e) {
+        e.preventDefault();
+        if (this.validateForm()) {
+            this.calculatePremium();
+            this.showResults();
+        }
+    }
+
+    handleFormReset() {
+        this.hideResults();
+        this.setDefaultExpiryDate();
+        this.clearErrors();
+    }
+
+    validateForm() {
+        let isValid = true;
+        this.clearErrors();
+
+        const requiredFields = [
+            { id: 'stockSymbol', message: 'Stock symbol is required' },
+            { id: 'strikePrice', message: 'Strike price must be greater than 0' },
+            { id: 'lotSize', message: 'Lot size must be greater than 0' },
+            { id: 'expiryDate', message: 'Expiry date is required' },
+            { id: 'premiumPerShare', message: 'Premium per share must be greater than 0' },
+            { id: 'numberOfLots', message: 'Number of lots must be at least 1' }
+        ];
+
+        requiredFields.forEach(field => {
+            const input = document.getElementById(field.id);
+            const value = input.value.trim();
+
+            if (!value || (field.id !== 'stockSymbol' && parseFloat(value) <= 0)) {
+                this.showError(field.id, field.message);
+                isValid = false;
+            }
+        });
+
+        // Validate expiry date is not in the past
+        const expiryDate = new Date(document.getElementById('expiryDate').value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (expiryDate < today) {
+            this.showError('expiryDate', 'Expiry date cannot be in the past');
+            isValid = false;
+        }
+
+        return isValid;
+    }
+
+    validateAndCalculate() {
+        const inputs = this.form.querySelectorAll('input[required]');
+        let allFilled = true;
+
+        inputs.forEach(input => {
+            if (!input.value.trim()) {
+                allFilled = false;
+            }
+        });
+
+        if (allFilled && this.validateForm()) {
+            this.calculatePremium();
+            this.showResults();
+        }
+    }
+
+    calculatePremium() {
+        const formData = this.getFormData();
+        const calculations = this.performCalculations(formData);
+        this.updateResultsDisplay(calculations);
+    }
+
+    getFormData() {
+        return {
+            stockSymbol: document.getElementById('stockSymbol').value.trim().toUpperCase(),
+            strikePrice: parseFloat(document.getElementById('strikePrice').value),
+            lotSize: parseInt(document.getElementById('lotSize').value),
+            expiryDate: new Date(document.getElementById('expiryDate').value),
+            premiumPerShare: parseFloat(document.getElementById('premiumPerShare').value),
+            numberOfLots: parseInt(document.getElementById('numberOfLots').value)
+        };
+    }
+
+    performCalculations(data) {
+        const totalShares = data.lotSize * data.numberOfLots;
+        const totalPremium = totalShares * data.premiumPerShare;
+        const daysToExpiry = this.calculateDaysToExpiry(data.expiryDate);
+        const dailyPremium = daysToExpiry > 0 ? totalPremium / daysToExpiry : 0;
+        
+        // Estimate margin required (approximately 15-20% of strike value for puts)
+        const marginRate = 0.18; // 18% approximate margin
+        const marginRequired = totalShares * data.strikePrice * marginRate;
+        
+        const returnOnMargin = marginRequired > 0 ? (totalPremium / marginRequired) * 100 : 0;
+        const breakeven = data.strikePrice - data.premiumPerShare;
+        
+        return {
+            totalShares,
+            totalPremium,
+            daysToExpiry,
+            dailyPremium,
+            marginRequired,
+            returnOnMargin,
+            maxProfit: totalPremium,
+            breakeven,
+            riskLevel: this.calculateRiskLevel(data.strikePrice, data.premiumPerShare)
+        };
+    }
+
+    calculateDaysToExpiry(expiryDate) {
+        const today = new Date();
+        const timeDiff = expiryDate.getTime() - today.getTime();
+        return Math.ceil(timeDiff / (1000 * 3600 * 24));
+    }
+
+    calculateRiskLevel(strikePrice, premium) {
+        const premiumPercentage = (premium / strikePrice) * 100;
+        if (premiumPercentage > 5) return 'Low';
+        if (premiumPercentage > 2) return 'Medium';
+        return 'High';
+    }
+
+    updateResultsDisplay(calculations) {
+        document.getElementById('totalPremium').textContent = this.formatCurrency(calculations.totalPremium);
+        document.getElementById('totalShares').textContent = calculations.totalShares.toLocaleString();
+        document.getElementById('daysToExpiry').textContent = calculations.daysToExpiry;
+        document.getElementById('dailyPremium').textContent = this.formatCurrency(calculations.dailyPremium);
+        document.getElementById('marginRequired').textContent = this.formatCurrency(calculations.marginRequired);
+        document.getElementById('returnOnMargin').textContent = calculations.returnOnMargin.toFixed(2) + '%';
+        document.getElementById('maxProfit').textContent = this.formatCurrency(calculations.maxProfit);
+        document.getElementById('maxLoss').textContent = 'Unlimited';
+        document.getElementById('breakeven').textContent = this.formatCurrency(calculations.breakeven);
+        document.getElementById('riskLevel').textContent = calculations.riskLevel;
+    }
+
+    formatCurrency(amount) {
+        return new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            minimumFractionDigits: 2
+        }).format(amount);
+    }
+
+    showResults() {
+        this.resultsSection.style.display = 'block';
+        this.resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    hideResults() {
+        this.resultsSection.style.display = 'none';
+        this.liveDataSection.style.display = 'none';
+    }
+
+    showError(fieldId, message) {
+        const field = document.getElementById(fieldId);
+        field.classList.add('error');
+        
+        let errorElement = field.parentNode.querySelector('.error');
+        if (!errorElement) {
+            errorElement = document.createElement('div');
+            errorElement.className = 'error';
+            field.parentNode.appendChild(errorElement);
+        }
+        errorElement.textContent = message;
+    }
+
+    clearErrors() {
+        const errorElements = this.form.querySelectorAll('.error');
+        errorElements.forEach(element => element.remove());
+        
+        const errorInputs = this.form.querySelectorAll('input.error');
+        errorInputs.forEach(input => input.classList.remove('error'));
+    }
+
+    showAlert(message, type = 'success') {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type}`;
+        alertDiv.textContent = message;
+        
+        const container = document.querySelector('.container');
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        setTimeout(() => {
+            alertDiv.remove();
+        }, 5000);
+    }
+
+    async checkKiteLoginStatus() {
+        try {
+            await this.kiteAPI.checkLoginStatus();
+            this.showAlert('Connected to Kite API successfully!', 'success');
+        } catch (error) {
+            console.log('Kite API not connected:', error.message);
+            // Don't show error alert on page load, just log it
+        }
+    }
+
+    async fetchLiveData() {
+        const stockSymbol = document.getElementById('stockSymbol').value.trim().toUpperCase();
+        
+        if (!stockSymbol) {
+            this.showAlert('Please enter a stock symbol first', 'warning');
+            return;
+        }
+
+        this.fetchLiveDataBtn.innerHTML = '<span class="loading"></span> Fetching...';
+        this.fetchLiveDataBtn.disabled = true;
+
+        try {
+            // Use the integrated Kite API
+            const optionsData = await this.kiteAPI.getOptionsChain(stockSymbol);
+            this.displayOptionsChain(optionsData);
+            this.liveDataSection.style.display = 'block';
+            this.showAlert('Live data fetched successfully!', 'success');
+        } catch (error) {
+            console.error('Error fetching live data:', error);
+            this.showAlert('Failed to fetch live data. Please try again.', 'danger');
+        } finally {
+            this.fetchLiveDataBtn.innerHTML = 'Fetch Live Data';
+            this.fetchLiveDataBtn.disabled = false;
+        }
+    }
+
+    displayOptionsChain(data) {
+        const optionsChainDiv = document.getElementById('optionsChain');
+        
+        const table = `
+            <div class="alert alert-success">
+                Current Price of ${data.symbol}: ${this.formatCurrency(data.underlying_price)}
+            </div>
+            <table class="options-table">
+                <thead>
+                    <tr>
+                        <th>Call OI</th>
+                        <th>Call Premium</th>
+                        <th>Strike Price</th>
+                        <th>Put Premium</th>
+                        <th>Put OI</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.options.map(option => `
+                        <tr onclick="this.selectStrike(${option.strike}, ${option.put.last_price})" style="cursor: pointer;">
+                            <td>${option.call.oi.toLocaleString()}</td>
+                            <td>${this.formatCurrency(option.call.last_price)}</td>
+                            <td style="font-weight: bold; background-color: #f8f9fa;">${this.formatCurrency(option.strike)}</td>
+                            <td>${this.formatCurrency(option.put.last_price)}</td>
+                            <td>${option.put.oi.toLocaleString()}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <p style="margin-top: 15px; text-align: center; color: #666;">
+                Click on any row to auto-fill the strike price and put premium
+            </p>
+        `;
+        
+        optionsChainDiv.innerHTML = table;
+        
+        // Add click handlers to table rows
+        const rows = optionsChainDiv.querySelectorAll('tbody tr');
+        rows.forEach((row, index) => {
+            row.addEventListener('click', () => {
+                const option = data.options[index];
+                document.getElementById('strikePrice').value = option.strike;
+                document.getElementById('premiumPerShare').value = option.put.last_price.toFixed(2);
+                this.validateAndCalculate();
+                this.showAlert(`Selected strike ${this.formatCurrency(option.strike)} with premium ${this.formatCurrency(option.put.last_price)}`, 'success');
+            });
+        });
+    }
+}
+
+// Initialize the calculator when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    new OptionsPremiumCalculator();
+});
+
+// Utility functions for common calculations
+const OptionsUtils = {
+    // Black-Scholes approximation for put option pricing
+    calculateTheoreticalPutPrice(S, K, T, r, sigma) {
+        // S = Current stock price
+        // K = Strike price
+        // T = Time to expiration (in years)
+        // r = Risk-free rate
+        // sigma = Volatility
+        
+        const d1 = (Math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * Math.sqrt(T));
+        const d2 = d1 - sigma * Math.sqrt(T);
+        
+        const putPrice = K * Math.exp(-r * T) * this.normalCDF(-d2) - S * this.normalCDF(-d1);
+        return Math.max(0, putPrice);
+    },
+    
+    // Normal cumulative distribution function
+    normalCDF(x) {
+        return 0.5 * (1 + this.erf(x / Math.sqrt(2)));
+    },
+    
+    // Error function approximation
+    erf(x) {
+        const a1 =  0.254829592;
+        const a2 = -0.284496736;
+        const a3 =  1.421413741;
+        const a4 = -1.453152027;
+        const a5 =  1.061405429;
+        const p  =  0.3275911;
+        
+        const sign = x >= 0 ? 1 : -1;
+        x = Math.abs(x);
+        
+        const t = 1.0 / (1.0 + p * x);
+        const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+        
+        return sign * y;
+    },
+    
+    // Calculate implied volatility (simplified)
+    calculateImpliedVolatility(marketPrice, S, K, T, r) {
+        let sigma = 0.2; // Initial guess
+        let iterations = 0;
+        const maxIterations = 100;
+        const tolerance = 0.0001;
+        
+        while (iterations < maxIterations) {
+            const price = this.calculateTheoreticalPutPrice(S, K, T, r, sigma);
+            const diff = price - marketPrice;
+            
+            if (Math.abs(diff) < tolerance) break;
+            
+            // Vega (sensitivity to volatility)
+            const vega = S * Math.sqrt(T) * this.normalCDF((Math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * Math.sqrt(T)));
+            
+            if (vega === 0) break;
+            
+            sigma = sigma - diff / vega;
+            iterations++;
+        }
+        
+        return Math.max(0, sigma);
+    }
+};

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Options Premium Calculator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Options Premium Calculator</h1>
+            <p>Calculate premium earned from selling put options</p>
+        </header>
+
+        <div class="calculator-section">
+            <form id="premiumForm" class="form-grid">
+                <div class="form-group">
+                    <label for="stockSymbol">Stock Symbol</label>
+                    <input type="text" id="stockSymbol" placeholder="e.g., RELIANCE, TCS" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="strikePrice">Strike Price (₹)</label>
+                    <input type="number" id="strikePrice" placeholder="e.g., 2500" step="0.01" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="lotSize">Lot Size</label>
+                    <input type="number" id="lotSize" placeholder="e.g., 250" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="expiryDate">Expiry Date</label>
+                    <input type="date" id="expiryDate" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="premiumPerShare">Premium per Share (₹)</label>
+                    <input type="number" id="premiumPerShare" placeholder="e.g., 45.50" step="0.01" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="numberOfLots">Number of Lots</label>
+                    <input type="number" id="numberOfLots" value="1" min="1" required>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Calculate Premium</button>
+                    <button type="button" id="fetchLiveData" class="btn btn-secondary">Fetch Live Data</button>
+                    <button type="reset" class="btn btn-outline">Clear</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="resultsSection" class="results-section" style="display: none;">
+            <h2>Premium Calculation Results</h2>
+            <div class="results-grid">
+                <div class="result-card">
+                    <h3>Total Premium Earned</h3>
+                    <div class="result-value" id="totalPremium">₹0.00</div>
+                </div>
+
+                <div class="result-card">
+                    <h3>Total Shares</h3>
+                    <div class="result-value" id="totalShares">0</div>
+                </div>
+
+                <div class="result-card">
+                    <h3>Days to Expiry</h3>
+                    <div class="result-value" id="daysToExpiry">0</div>
+                </div>
+
+                <div class="result-card">
+                    <h3>Daily Premium</h3>
+                    <div class="result-value" id="dailyPremium">₹0.00</div>
+                </div>
+
+                <div class="result-card">
+                    <h3>Margin Required</h3>
+                    <div class="result-value" id="marginRequired">₹0.00</div>
+                </div>
+
+                <div class="result-card">
+                    <h3>Return on Margin</h3>
+                    <div class="result-value" id="returnOnMargin">0.00%</div>
+                </div>
+            </div>
+
+            <div class="additional-info">
+                <h3>Strategy Details</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <strong>Max Profit:</strong> <span id="maxProfit">₹0.00</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Max Loss:</strong> <span id="maxLoss">Unlimited</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Breakeven Point:</strong> <span id="breakeven">₹0.00</span>
+                    </div>
+                    <div class="info-item">
+                        <strong>Risk Level:</strong> <span id="riskLevel">High</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="live-data-section" style="display: none;" id="liveDataSection">
+            <h2>Live Options Data</h2>
+            <div id="optionsChain"></div>
+        </div>
+    </div>
+
+    <script src="kite-api.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
