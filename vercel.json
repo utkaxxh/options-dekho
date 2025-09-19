@@ -4,7 +4,6 @@
   "devCommand": "python -m http.server 3000",
   "installCommand": "echo 'No install required for static site'",
   "framework": null,
-  "functions": {},
   "rewrites": [],
   "headers": [
     {
