@@ -62,18 +62,20 @@ class KiteAPIIntegration {
     async searchInstruments(query) {
         try {
             // This would use the mcp_kite_search_instruments function
-            // Simulated response - replace with actual MCP call
+            // Generate realistic stock prices based on symbol
+            const stockPrice = this.getRealisticStockPrice(query.toUpperCase());
+            
             return [
                 {
                     instrument_token: 258561,
                     exchange_token: 1010,
                     tradingsymbol: query.toUpperCase(),
                     name: `${query.toUpperCase()} LTD`,
-                    last_price: 2500.0,
+                    last_price: stockPrice,
                     expiry: "",
                     strike: 0.0,
                     tick_size: 0.05,
-                    lot_size: 1,
+                    lot_size: this.getRealisticLotSize(query.toUpperCase()),
                     instrument_type: "EQ",
                     segment: "NSE",
                     exchange: "NSE"
@@ -84,40 +86,108 @@ class KiteAPIIntegration {
         }
     }
 
+    // Get realistic stock price based on symbol
+    getRealisticStockPrice(symbol) {
+        const stockPrices = {
+            'RELIANCE': 2450 + (Math.random() - 0.5) * 100,
+            'TCS': 3200 + (Math.random() - 0.5) * 200,
+            'INFY': 1450 + (Math.random() - 0.5) * 100,
+            'WIPRO': 420 + (Math.random() - 0.5) * 40,
+            'HDFC': 1580 + (Math.random() - 0.5) * 80,
+            'HDFCBANK': 1620 + (Math.random() - 0.5) * 100,
+            'ICICIBANK': 950 + (Math.random() - 0.5) * 100,
+            'SBIN': 580 + (Math.random() - 0.5) * 60,
+            'ITC': 460 + (Math.random() - 0.5) * 40,
+            'LT': 3200 + (Math.random() - 0.5) * 200,
+            'HCLTECH': 1180 + (Math.random() - 0.5) * 80,
+            'TATASTEEL': 140 + (Math.random() - 0.5) * 20,
+            'BHARTIARTL': 920 + (Math.random() - 0.5) * 80,
+            'MARUTI': 10500 + (Math.random() - 0.5) * 500,
+            'ASIANPAINT': 3200 + (Math.random() - 0.5) * 200,
+            'TITAN': 3100 + (Math.random() - 0.5) * 200,
+            'ULTRACEMCO': 9800 + (Math.random() - 0.5) * 500,
+            'NESTLEIND': 2400 + (Math.random() - 0.5) * 200,
+            'KOTAKBANK': 1750 + (Math.random() - 0.5) * 100,
+            'AXISBANK': 1080 + (Math.random() - 0.5) * 80
+        };
+        
+        // Return known price or generate based on price range
+        if (stockPrices[symbol]) {
+            return Math.round(stockPrices[symbol] * 100) / 100;
+        }
+        
+        // For unknown symbols, generate based on first letter for consistency
+        const firstChar = symbol.charAt(0);
+        const basePrice = (firstChar.charCodeAt(0) - 65) * 200 + 300; // 300-5500 range
+        return Math.round((basePrice + (Math.random() - 0.5) * basePrice * 0.2) * 100) / 100;
+    }
+
+    // Get realistic lot size based on symbol
+    getRealisticLotSize(symbol) {
+        const lotSizes = {
+            'RELIANCE': 250,
+            'TCS': 150,
+            'INFY': 300,
+            'WIPRO': 1200,
+            'HDFC': 300,
+            'HDFCBANK': 300,
+            'ICICIBANK': 500,
+            'SBIN': 750,
+            'ITC': 1600,
+            'LT': 150,
+            'HCLTECH': 400,
+            'TATASTEEL': 3500,
+            'BHARTIARTL': 600,
+            'MARUTI': 50,
+            'ASIANPAINT': 150,
+            'TITAN': 150,
+            'ULTRACEMCO': 50,
+            'NESTLEIND': 200,
+            'KOTAKBANK': 250,
+            'AXISBANK': 450
+        };
+        
+        return lotSizes[symbol] || 500; // Default lot size
+    }
+
     // Get quotes for instruments
     async getQuotes(instruments) {
         try {
             // This would use the mcp_kite_get_quotes function
             const quotes = {};
             instruments.forEach(instrument => {
+                const symbol = instrument.split(':')[1] || instrument;
+                const currentPrice = this.getRealisticStockPrice(symbol);
+                const variation = currentPrice * 0.02; // 2% variation
+                
                 quotes[instrument] = {
                     instrument_token: 258561,
                     timestamp: new Date().toISOString(),
-                    last_price: 2500.0 + (Math.random() - 0.5) * 100,
+                    last_price: currentPrice,
                     last_quantity: 1,
                     last_trade_time: new Date().toISOString(),
-                    average_price: 2485.75,
-                    volume: 1000000,
-                    buy_quantity: 500,
-                    sell_quantity: 750,
+                    average_price: currentPrice * 0.995,
+                    volume: Math.floor(Math.random() * 10000000),
+                    buy_quantity: Math.floor(Math.random() * 1000),
+                    sell_quantity: Math.floor(Math.random() * 1000),
                     ohlc: {
-                        open: 2480.0,
-                        high: 2520.0,
-                        low: 2470.0,
-                        close: 2500.0
+                        open: currentPrice - variation + Math.random() * variation,
+                        high: currentPrice + Math.random() * variation,
+                        low: currentPrice - Math.random() * variation,
+                        close: currentPrice
                     },
-                    net_change: 20.0,
+                    net_change: (Math.random() - 0.5) * variation,
                     oi: 0,
                     oi_day_high: 0,
                     oi_day_low: 0,
                     depth: {
                         buy: [
-                            { price: 2499.0, quantity: 100, orders: 5 },
-                            { price: 2498.0, quantity: 200, orders: 8 }
+                            { price: currentPrice - 1, quantity: Math.floor(Math.random() * 500), orders: Math.floor(Math.random() * 10) },
+                            { price: currentPrice - 2, quantity: Math.floor(Math.random() * 500), orders: Math.floor(Math.random() * 10) }
                         ],
                         sell: [
-                            { price: 2501.0, quantity: 150, orders: 6 },
-                            { price: 2502.0, quantity: 180, orders: 7 }
+                            { price: currentPrice + 1, quantity: Math.floor(Math.random() * 500), orders: Math.floor(Math.random() * 10) },
+                            { price: currentPrice + 2, quantity: Math.floor(Math.random() * 500), orders: Math.floor(Math.random() * 10) }
                         ]
                     }
                 };
@@ -134,9 +204,12 @@ class KiteAPIIntegration {
             // This would use the mcp_kite_get_ltp function
             const ltpData = {};
             instruments.forEach(instrument => {
+                const symbol = instrument.split(':')[1] || instrument;
+                const currentPrice = this.getRealisticStockPrice(symbol);
+                
                 ltpData[instrument] = {
                     instrument_token: 258561,
-                    last_price: 2500.0 + (Math.random() - 0.5) * 50
+                    last_price: currentPrice
                 };
             });
             return ltpData;
@@ -186,23 +259,27 @@ class KiteAPIIntegration {
             const callPrice = this.calculateCallPrice(currentPrice, strike, timeToExpiry, riskFreeRate, volatility);
             const putPrice = this.calculatePutPrice(currentPrice, strike, timeToExpiry, riskFreeRate, volatility);
             
+            // Add some randomness to make it more realistic
+            const callVariation = callPrice * 0.1 * (Math.random() - 0.5);
+            const putVariation = putPrice * 0.1 * (Math.random() - 0.5);
+            
             options.push({
                 strike: strike,
                 call: {
-                    last_price: callPrice + (Math.random() - 0.5) * 10,
-                    bid: callPrice - 2,
-                    ask: callPrice + 2,
-                    volume: Math.floor(Math.random() * 10000),
-                    oi: Math.floor(Math.random() * 50000),
-                    change: (Math.random() - 0.5) * 20
+                    last_price: Math.max(0.05, callPrice + callVariation),
+                    bid: Math.max(0.05, callPrice + callVariation - Math.random() * 5),
+                    ask: callPrice + callVariation + Math.random() * 5,
+                    volume: Math.floor(Math.random() * 50000),
+                    oi: Math.floor(Math.random() * 200000),
+                    change: (Math.random() - 0.5) * callPrice * 0.2
                 },
                 put: {
-                    last_price: putPrice + (Math.random() - 0.5) * 10,
-                    bid: putPrice - 2,
-                    ask: putPrice + 2,
-                    volume: Math.floor(Math.random() * 10000),
-                    oi: Math.floor(Math.random() * 50000),
-                    change: (Math.random() - 0.5) * 20
+                    last_price: Math.max(0.05, putPrice + putVariation),
+                    bid: Math.max(0.05, putPrice + putVariation - Math.random() * 5),
+                    ask: putPrice + putVariation + Math.random() * 5,
+                    volume: Math.floor(Math.random() * 50000),
+                    oi: Math.floor(Math.random() * 200000),
+                    change: (Math.random() - 0.5) * putPrice * 0.2
                 }
             });
         });
@@ -213,13 +290,35 @@ class KiteAPIIntegration {
     // Generate strike prices around current price
     generateStrikes(currentPrice) {
         const strikes = [];
-        const baseStrike = Math.round(currentPrice / 50) * 50; // Round to nearest 50
         
-        for (let i = -10; i <= 10; i++) {
-            strikes.push(baseStrike + (i * 50));
+        // Determine strike interval based on stock price
+        let interval;
+        if (currentPrice < 100) {
+            interval = 5;       // For very low priced stocks
+        } else if (currentPrice < 500) {
+            interval = 10;      // For low priced stocks (like TATASTEEL, ITC)
+        } else if (currentPrice < 1000) {
+            interval = 25;      // For medium priced stocks
+        } else if (currentPrice < 2000) {
+            interval = 50;      // For higher priced stocks
+        } else if (currentPrice < 5000) {
+            interval = 100;     // For very high priced stocks
+        } else {
+            interval = 250;     // For ultra high priced stocks (like MARUTI)
         }
         
-        return strikes.filter(strike => strike > 0);
+        // Round current price to nearest interval for base strike
+        const baseStrike = Math.round(currentPrice / interval) * interval;
+        
+        // Generate strikes around the base price (typically ±10 strikes)
+        for (let i = -10; i <= 10; i++) {
+            const strike = baseStrike + (i * interval);
+            if (strike > 0) {  // Only positive strikes
+                strikes.push(strike);
+            }
+        }
+        
+        return strikes;
     }
 
     // Get next Thursday expiry
