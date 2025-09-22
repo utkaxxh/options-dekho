@@ -29,6 +29,20 @@ class OptionsPremiumCalculator {
         this.toggleAutoRefreshBtn.addEventListener('click', () => this.toggleAutoRefresh());
         this.refreshIntervalSelect.addEventListener('change', () => this.updateRefreshInterval());
         
+        // Auto-populate lot size when stock symbol changes
+        const stockSymbolInput = document.getElementById('stockSymbol');
+        stockSymbolInput.addEventListener('blur', async () => {
+            const symbol = stockSymbolInput.value.trim().toUpperCase();
+            if (symbol) {
+                try {
+                    const lotSize = await this.kiteAPI.getLotSize(symbol);
+                    document.getElementById('lotSize').value = lotSize;
+                } catch (error) {
+                    console.warn('Could not fetch lot size for', symbol, error.message);
+                }
+            }
+        });
+        
         // Auto-calculate when relevant inputs change
         const inputs = this.formContainer.querySelectorAll('input');
         inputs.forEach(input => {
