@@ -464,7 +464,7 @@ header p {
 
 .alert-success {
     background-color: #d4edda;
-    border: 1px solid #c3e6cb;
+    border: 1x solid #c3e6cb;
     color: #155724;
 }
 
@@ -478,4 +478,127 @@ header p {
     background-color: #fff3cd;
     border: 1px solid #ffeaa7;
     color: #856404;
+}
+
+/* Value Update Animation */
+.value-updated {
+    animation: valueUpdate 1s ease-in-out;
+    font-weight: bold;
+}
+
+@keyframes valueUpdate {
+    0% { 
+        background-color: #28a745;
+        color: white;
+        transform: scale(1.05);
+    }
+    100% { 
+        background-color: transparent;
+        color: inherit;
+        transform: scale(1);
+    }
+}
+
+/* Options Table Enhancements */
+.options-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 14px;
+    overflow: hidden;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.options-table th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px 12px;
+    text-align: center;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+}
+
+.options-table td {
+    padding: 12px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    transition: all 0.3s ease;
+}
+
+.options-table tbody tr {
+    transition: all 0.3s ease;
+}
+
+.options-table tbody tr:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    cursor: pointer;
+}
+
+.options-table tbody tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+.options-table tbody tr:nth-child(even):hover {
+    background-color: #f0f0f0;
+}
+
+/* Live Data Section Enhancements */
+.live-data-section {
+    background: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    margin-top: 30px;
+}
+
+.live-data-section h2 {
+    color: #333;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Loading Enhancement */
+.loading {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design Enhancements */
+@media (max-width: 768px) {
+    .options-table {
+        font-size: 12px;
+    }
+    
+    .options-table th,
+    .options-table td {
+        padding: 8px 6px;
+    }
+    
+    .container {
+        padding: 10px;
+    }
+    
+    header h1 {
+        font-size: 2rem;
+    }
+    
+    .calculator-section,
+    .live-data-section {
+        padding: 20px;
+    }
 }

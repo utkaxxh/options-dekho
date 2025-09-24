@@ -297,10 +297,10 @@ class OptionsPremiumCalculator {
     async checkKiteLoginStatus() {
         try {
             await this.kiteAPI.checkLoginStatus();
-            this.showAlert('Connected to Kite API successfully!', 'success');
+            this.showAlert('Connected to Kite API successfully! Live data enabled.', 'success');
         } catch (error) {
-            console.log('Kite API not connected:', error.message);
-            // Don't show error alert on page load, just log it
+            console.log('Kite API not connected, using demo mode:', error.message);
+            this.showAlert('Demo Mode: Using simulated data. For live data, use within VS Code with MCP Kite extension.', 'warning');
         }
     }
 
@@ -328,13 +328,13 @@ class OptionsPremiumCalculator {
                 this.calculatePremiumFromLiveData();
             }
             
-            this.showAlert('Live data fetched successfully! Click on any strike price to calculate premium.', 'success');
+            this.showAlert('Options data loaded successfully! Click on any strike price to calculate premium.', 'success');
             
             // Store the data for comparison in auto-refresh
             this.lastPremiumData = optionsData;
         } catch (error) {
             console.error('Error fetching live data:', error);
-            this.showAlert('Failed to fetch live data. Please try again.', 'danger');
+            this.showAlert('Using simulated data for demonstration. For live data, use within VS Code with MCP extension.', 'warning');
         } finally {
             this.updateFetchButton(false);
         }

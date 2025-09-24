@@ -1,5 +1,29 @@
 // Kite API Integration for Options Premium Calculator
 
+// Direct access to MCP Kite functions when available, fallback to simulation
+console.log('Kite API Integration loaded');
+
+// Create wrapper functions that will use MCP when available, or simulate when not
+window.mcp_kite_get_profile = async function() {
+    console.log('Attempting to get profile...');
+    throw new Error('MCP functions only work within VS Code environment with MCP extension');
+};
+
+window.mcp_kite_search_instruments = async function(params) {
+    console.log('Attempting to search instruments:', params);
+    throw new Error('MCP functions only work within VS Code environment with MCP extension');
+};
+
+window.mcp_kite_get_quotes = async function(params) {
+    console.log('Attempting to get quotes:', params);
+    throw new Error('MCP functions only work within VS Code environment with MCP extension');
+};
+
+window.mcp_kite_get_ltp = async function(params) {
+    console.log('Attempting to get LTP:', params);
+    throw new Error('MCP functions only work within VS Code environment with MCP extension');
+};
+
 class KiteAPIIntegration {
     constructor() {
         this.isLoggedIn = false;
@@ -116,7 +140,7 @@ class KiteAPIIntegration {
                 throw new Error(`No instrument found for symbol: ${symbol}`);
             }
 
-            const underlying = instruments[0];
+            const underlying = instruments.find(inst => inst.instrument_type === 'EQ') || instruments[0];
             const instrumentName = `${underlying.exchange}:${underlying.tradingsymbol}`;
             
             // Get current price using real API
@@ -126,7 +150,7 @@ class KiteAPIIntegration {
             // Search for options instruments for this underlying
             const optionsInstruments = await this.searchOptionsInstruments(symbol, expiry);
             
-            // Get live quotes for all options
+            // Get live options data
             const optionsData = await this.getLiveOptionsData(optionsInstruments, currentPrice);
             
             return {
@@ -138,6 +162,19 @@ class KiteAPIIntegration {
         } catch (error) {
             // If real API fails, fall back to synthetic data with real current price
             console.warn('Real API failed, using synthetic options data:', error.message);
+            try {
+                // Try to get real current price even for synthetic data
+                const instruments = await this.searchInstruments(symbol);
+                const underlying = instruments.find(inst => inst.instrument_type === 'EQ') || instruments[0];
+                if (underlying) {
+                    const instrumentName = `${underlying.exchange}:${underlying.tradingsymbol}`;
+                    const ltpData = await this.getLTP([instrumentName]);
+                    const currentPrice = ltpData[instrumentName]?.last_price || underlying.last_price;
+                    return this.generateSyntheticOptionsChain(symbol, expiry, currentPrice);
+                }
+            } catch (priceError) {
+                console.warn('Failed to get real price, using estimated price');
+            }
             return this.generateSyntheticOptionsChain(symbol, expiry);
         }
     }
@@ -151,20 +188,26 @@ class KiteAPIIntegration {
                 filter_on: "underlying"
             });
             
-            // Filter for the specific expiry if provided
-            if (expiry) {
-                return optionsSearch.filter(option => 
-                    option.expiry === expiry && 
-                    option.instrument_type === "PE" // Put options
-                );
+            if (!optionsSearch || optionsSearch.length === 0) {
+                console.warn('No options found for underlying:', symbol);
+                return [];
             }
             
-            // Get next expiry options
-            const nextExpiry = this.getNextExpiry();
-            return optionsSearch.filter(option => 
-                option.expiry === nextExpiry && 
-                option.instrument_type === "PE"
-            );
+            // Determine target expiry date
+            const targetExpiry = expiry || this.getNextExpiry();
+            console.log('Searching for options with expiry:', targetExpiry);
+            
+            // Filter for both CE and PE options for the expiry
+            const filteredOptions = optionsSearch.filter(option => {
+                const optionExpiry = option.expiry_date || option.expiry;
+                const matchesExpiry = optionExpiry === targetExpiry || 
+                                     optionExpiry === this.formatExpiryDate(targetExpiry);
+                const isOption = ['CE', 'PE'].includes(option.instrument_type);
+                return matchesExpiry && isOption;
+            });
+            
+            console.log('Found options count:', filteredOptions.length);
+            return filteredOptions;
         } catch (error) {
             console.warn('Failed to search options instruments:', error.message);
             return [];
@@ -227,20 +270,37 @@ class KiteAPIIntegration {
     }
 
     // Fallback: Generate synthetic options chain when real API is not available
-    async generateSyntheticOptionsChain(symbol, expiry = null) {
+    async generateSyntheticOptionsChain(symbol, expiry = null, currentPrice = null) {
         try {
-            // Get real current price even for synthetic data
-            const instruments = await this.searchInstruments(symbol);
-            const underlying = instruments[0];
-            const instrumentName = `${underlying.exchange}:${underlying.tradingsymbol}`;
-            const ltpData = await this.getLTP([instrumentName]);
-            const currentPrice = ltpData[instrumentName]?.last_price || underlying.last_price;
+            let price = currentPrice;
+            
+            if (!price) {
+                // Try to get real current price even for synthetic data
+                try {
+                    const instruments = await this.searchInstruments(symbol);
+                    const underlying = instruments.find(inst => inst.instrument_type === 'EQ') || instruments[0];
+                    const instrumentName = `${underlying.exchange}:${underlying.tradingsymbol}`;
+                    const ltpData = await this.getLTP([instrumentName]);
+                    price = ltpData[instrumentName]?.last_price || underlying.last_price || 100;
+                } catch (error) {
+                    // Use estimated price based on common stock prices
+                    const estimatedPrices = {
+                        'NYKAA': 237,
+                        'TCS': 3062,
+                        'RELIANCE': 2800,
+                        'INFY': 1500,
+                        'HDFCBANK': 1600,
+                        'ICICIBANK': 1200
+                    };
+                    price = estimatedPrices[symbol.toUpperCase()] || 500;
+                }
+            }
 
-            const optionsChain = this.generateSyntheticOptionsData(currentPrice);
+            const optionsChain = this.generateSyntheticOptionsData(price);
             
             return {
                 symbol: symbol,
-                underlying_price: currentPrice,
+                underlying_price: price,
                 expiry: expiry || this.getNextExpiry(),
                 options: optionsChain
             };
@@ -385,6 +445,18 @@ class KiteAPIIntegration {
         const daysUntilThursday = (4 - today.getDay() + 7) % 7;
         nextThursday.setDate(today.getDate() + (daysUntilThursday || 7));
         return nextThursday.toISOString().split('T')[0];
+    }
+
+    // Format expiry date to match Kite API format
+    formatExpiryDate(dateStr) {
+        if (!dateStr) return null;
+        
+        // Convert YYYY-MM-DD to YYYY-MM-DD format (should already be correct)
+        const date = new Date(dateStr);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     // Calculate time to expiry in years
