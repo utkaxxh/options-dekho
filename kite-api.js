@@ -120,25 +120,93 @@ async function simulateLTP(params) {
 }
 
 async function simulateQuotes(params) {
+    // Realistic stock price simulation based on common Indian stocks
+    const stockPrices = {
+        'NSE:RELIANCE': 2847.50,
+        'NSE:TCS': 3062.40,
+        'NSE:HDFCBANK': 1634.20,
+        'NSE:INFY': 1503.85,
+        'NSE:HINDUNILVR': 2778.95,
+        'NSE:ICICIBANK': 1247.30,
+        'NSE:SBIN': 742.85,
+        'NSE:BHARTIARTL': 1208.45,
+        'NSE:ITC': 462.70,
+        'NSE:KOTAKBANK': 1745.20,
+        'NSE:LT': 3652.30,
+        'NSE:ASIANPAINT': 2890.15,
+        'NSE:MARUTI': 10875.80,
+        'NSE:TITAN': 3245.60,
+        'NSE:AXISBANK': 1150.95,
+        'NSE:ULTRACEMCO': 10980.25,
+        'NSE:NESTLEIND': 2195.40,
+        'NSE:POWERGRID': 325.70,
+        'NSE:NTPC': 355.90,
+        'NSE:ONGC': 245.30,
+        'NSE:COALINDIA': 405.60,
+        'NSE:TATASTEEL': 145.85,
+        'NSE:TATAMOTORS': 1045.20,
+        'NSE:TATACONSUM': 910.35,
+        'NSE:SUNPHARMA': 1785.70,
+        'NSE:TECHM': 1675.40,
+        'NSE:WIPRO': 565.85,
+        'NSE:HCLTECH': 1785.90,
+        'NSE:M&M': 2890.45,
+        'NSE:BAJFINANCE': 6980.75,
+        'NSE:BAJAJFINSV': 1680.20,
+        'NSE:DIVISLAB': 5890.30,
+        'NSE:DRREDDY': 1245.85,
+        'NSE:CIPLA': 1460.40,
+        'NSE:EICHERMOT': 4875.60,
+        'NSE:HEROMOTOCO': 4560.25,
+        'NSE:BPCL': 285.95,
+        'NSE:HINDALCO': 645.70,
+        'NSE:JSWSTEEL': 945.35,
+        'NSE:GRASIM': 2540.80,
+        'NSE:INDUSINDBK': 975.45,
+        'NSE:UPL': 545.20,
+        'NSE:ADANIPORTS': 1245.60,
+        'NSE:DELHIVERY': 459.30,
+        'NSE:NYKAA': 237.71
+    };
+
     const results = {};
     
     params.instruments.forEach(instrument => {
-        const lastPrice = 50 + Math.random() * 200;
+        // Get base price from our realistic data or use current timestamp for variation
+        let basePrice = stockPrices[instrument] || (100 + Math.random() * 900);
+        
+        // Add small random variation (±2%) to simulate real-time price changes
+        const variation = (Math.random() - 0.5) * 0.04; // ±2%
+        const lastPrice = basePrice * (1 + variation);
+        
+        // Calculate realistic OHLC values
+        const dayVariation = 0.03; // ±3% for daily range
+        const open = basePrice * (1 + (Math.random() - 0.5) * dayVariation);
+        const high = Math.max(open, lastPrice) * (1 + Math.random() * 0.01);
+        const low = Math.min(open, lastPrice) * (1 - Math.random() * 0.01);
+        const close = basePrice * (1 + (Math.random() - 0.5) * dayVariation);
+        
         results[instrument] = {
             instrument_token: Math.floor(Math.random() * 10000000),
-            last_price: lastPrice,
-            volume: Math.floor(Math.random() * 100000),
-            oi: Math.floor(Math.random() * 500000),
-            net_change: (Math.random() - 0.5) * 10,
+            last_price: Math.round(lastPrice * 100) / 100, // Round to 2 decimal places
+            volume: Math.floor(Math.random() * 100000) + 10000,
+            oi: Math.floor(Math.random() * 500000) + 50000,
+            net_change: Math.round((lastPrice - basePrice) * 100) / 100,
             ohlc: {
-                open: lastPrice * (0.98 + Math.random() * 0.04),
-                high: lastPrice * (1.01 + Math.random() * 0.02), 
-                low: lastPrice * (0.97 + Math.random() * 0.02),
-                close: lastPrice * (0.99 + Math.random() * 0.02)
+                open: Math.round(open * 100) / 100,
+                high: Math.round(high * 100) / 100,
+                low: Math.round(low * 100) / 100,
+                close: Math.round(close * 100) / 100
             },
             depth: {
-                buy: [{price: lastPrice - 0.5, quantity: 1000, orders: 5}],
-                sell: [{price: lastPrice + 0.5, quantity: 1000, orders: 5}]
+                buy: [
+                    {price: Math.round((lastPrice - 0.5) * 100) / 100, quantity: 1000, orders: 5},
+                    {price: Math.round((lastPrice - 1.0) * 100) / 100, quantity: 500, orders: 3}
+                ],
+                sell: [
+                    {price: Math.round((lastPrice + 0.5) * 100) / 100, quantity: 1000, orders: 5},
+                    {price: Math.round((lastPrice + 1.0) * 100) / 100, quantity: 500, orders: 3}
+                ]
             }
         };
     });

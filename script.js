@@ -14,20 +14,6 @@ class OptionsPremiumCalculator {
     initializeEventListeners() {
         this.calculatePremiumBtn = document.getElementById('calculatePremium');
         this.calculatePremiumBtn.addEventListener('click', () => this.calculatePremium());
-        
-        // Auto-populate lot size when stock symbol changes
-        const stockSymbolInput = document.getElementById('stockSymbol');
-        stockSymbolInput.addEventListener('blur', async () => {
-            const symbol = stockSymbolInput.value.trim().toUpperCase();
-            if (symbol) {
-                try {
-                    const lotSize = await this.kiteAPI.getLotSize(symbol);
-                    document.getElementById('lotSize').value = lotSize;
-                } catch (error) {
-                    console.warn('Could not fetch lot size for', symbol, error.message);
-                }
-            }
-        });
 
         // Reset functionality
         const clearBtn = this.formContainer.querySelector('button[type="reset"]');
@@ -66,9 +52,8 @@ class OptionsPremiumCalculator {
         const requiredFields = [
             { id: 'stockSymbol', message: 'Stock symbol is required' },
             { id: 'strikePrice', message: 'Strike price must be greater than 0' },
-            { id: 'lotSize', message: 'Lot size must be greater than 0' },
-            { id: 'expiryDate', message: 'Expiry date is required' },
-            { id: 'numberOfLots', message: 'Number of lots must be at least 1' }
+            { id: 'quantity', message: 'Quantity must be greater than 0' },
+            { id: 'expiryDate', message: 'Expiry date is required' }
         ];
 
         requiredFields.forEach(field => {
@@ -151,37 +136,28 @@ class OptionsPremiumCalculator {
         this.updateCalculateButton(true);
 
         try {
-            // Get current stock price
+            // Get current stock price from API
             const ltpData = await this.kiteAPI.getLTP([`${formData.exchange || 'NSE'}:${formData.stockSymbol}`]);
-            const currentPrice = ltpData[`${formData.exchange || 'NSE'}:${formData.stockSymbol}`]?.last_price || 100;
+            const currentPrice = ltpData[`${formData.exchange || 'NSE'}:${formData.stockSymbol}`]?.last_price;
+            
+            if (!currentPrice) {
+                throw new Error('Could not fetch current price');
+            }
             
             // Calculate theoretical premium using Black-Scholes
             const premium = this.calculateTheoreticalPutPremium(
                 currentPrice,
                 formData.strikePrice,
                 formData.expiryDate,
-                formData.numberOfLots,
-                formData.lotSize
+                formData.quantity
             );
 
             this.displayPremiumResult(premium, formData, currentPrice);
             this.showResults();
             
         } catch (error) {
-            console.error('Error calculating premium:', error);
-            
-            // Fallback to estimated calculation
-            const estimatedPrice = this.getEstimatedPrice(formData.stockSymbol);
-            const premium = this.calculateTheoreticalPutPremium(
-                estimatedPrice,
-                formData.strikePrice,
-                formData.expiryDate,
-                formData.numberOfLots,
-                formData.lotSize
-            );
-
-            this.displayPremiumResult(premium, formData, estimatedPrice);
-            this.showResults();
+            console.error('Error fetching real-time data:', error);
+            this.showAlert('Could not fetch real-time data. Please check the stock symbol or try again.', 'error');
             
         } finally {
             this.updateCalculateButton(false);
@@ -192,14 +168,13 @@ class OptionsPremiumCalculator {
         return {
             stockSymbol: document.getElementById('stockSymbol').value.trim().toUpperCase(),
             strikePrice: parseFloat(document.getElementById('strikePrice').value),
-            lotSize: parseInt(document.getElementById('lotSize').value),
+            quantity: parseInt(document.getElementById('quantity').value),
             expiryDate: new Date(document.getElementById('expiryDate').value),
-            numberOfLots: parseInt(document.getElementById('numberOfLots').value),
             exchange: 'NSE' // Default to NSE
         };
     }
 
-    calculateTheoreticalPutPremium(currentPrice, strikePrice, expiryDate, numberOfLots, lotSize) {
+    calculateTheoreticalPutPremium(currentPrice, strikePrice, expiryDate, quantity) {
         const today = new Date();
         const timeToExpiry = (expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 365); // in years
         
@@ -207,7 +182,7 @@ class OptionsPremiumCalculator {
             // Option has expired
             return {
                 premiumPerShare: Math.max(0, strikePrice - currentPrice),
-                totalPremium: Math.max(0, strikePrice - currentPrice) * numberOfLots * lotSize
+                totalPremium: Math.max(0, strikePrice - currentPrice) * quantity
             };
         }
         
@@ -224,7 +199,7 @@ class OptionsPremiumCalculator {
                         - currentPrice * this.normalCDF(-d1);
         
         const premiumPerShare = Math.max(0.05, putPrice); // Minimum 5 paisa
-        const totalPremium = premiumPerShare * numberOfLots * lotSize;
+        const totalPremium = premiumPerShare * quantity;
         
         return {
             premiumPerShare,
@@ -255,64 +230,13 @@ class OptionsPremiumCalculator {
         return sign * y;
     }
 
-    getEstimatedPrice(symbol) {
-        const prices = {
-            'NYKAA': 237.71,
-            'TCS': 3062.40,
-            'RELIANCE': 2847.50,
-            'INFY': 1500,
-            'HDFCBANK': 1600,
-            'ICICIBANK': 1200,
-            'SBIN': 750,
-            'BHARTIARTL': 1200,
-            'DELHIVERY': 459.00,
-            'ADANIPORTS': 1245.00,
-            'ASIANPAINT': 2890.00,
-            'AXISBANK': 1150.00,
-            'BAJFINANCE': 6980.00,
-            'BAJAJFINSV': 1680.00,
-            'BPCL': 285.00,
-            'CIPLA': 1460.00,
-            'COALINDIA': 405.00,
-            'DIVISLAB': 5890.00,
-            'DRREDDY': 1245.00,
-            'EICHERMOT': 4875.00,
-            'GRASIM': 2540.00,
-            'HCLTECH': 1785.00,
-            'HEROMOTOCO': 4560.00,
-            'HINDALCO': 645.00,
-            'HINDUNILVR': 2780.00,
-            'ITC': 465.00,
-            'INDUSINDBK': 975.00,
-            'JSWSTEEL': 945.00,
-            'KOTAKBANK': 1745.00,
-            'LT': 3650.00,
-            'M&M': 2890.00,
-            'MARUTI': 10875.00,
-            'NESTLEIND': 2195.00,
-            'NTPC': 355.00,
-            'ONGC': 245.00,
-            'POWERGRID': 325.00,
-            'SUNPHARMA': 1785.00,
-            'TATACONSUM': 910.00,
-            'TATAMOTORS': 1045.00,
-            'TATASTEEL': 145.00,
-            'TECHM': 1675.00,
-            'TITAN': 3245.00,
-            'ULTRACEMCO': 10980.00,
-            'UPL': 545.00,
-            'WIPRO': 565.00
-        };
-        return prices[symbol] || 500;
-    }
-
     displayPremiumResult(premium, formData, currentPrice) {
         document.getElementById('totalPremium').textContent = this.formatCurrency(premium.totalPremium);
         
         const detailsText = `
             ${formData.stockSymbol} PUT @ ₹${formData.strikePrice} • Expiry: ${formData.expiryDate.toLocaleDateString()} 
             • Premium per share: ₹${premium.premiumPerShare.toFixed(2)} 
-            • Total lots: ${formData.numberOfLots} (${formData.numberOfLots * formData.lotSize} shares)
+            • Quantity: ${formData.quantity} shares
             • Current Price: ₹${currentPrice.toFixed(2)}
         `;
         
