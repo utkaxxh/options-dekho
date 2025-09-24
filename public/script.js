@@ -4,9 +4,77 @@ class OptionsPremiumCalculator {
         this.riskFreeRate = 0.05; // 5% annual risk-free rate
         this.volatility = 0.25;   // 25% annual volatility (default)
         
+        // Lot sizes for popular stocks (shares per lot)
+        this.lotSizes = {
+            'RELIANCE': 505,
+            'TCS': 1125,
+            'INFY': 600,
+            'HDFCBANK': 550,
+            'ICICIBANK': 1375,
+            'KOTAKBANK': 400,
+            'HINDUNILVR': 300,
+            'SBIN': 3000,
+            'BHARTIARTL': 1700,
+            'ITC': 1600,
+            'LT': 600,
+            'AXISBANK': 1200,
+            'ASIANPAINT': 300,
+            'MARUTI': 300,
+            'SUNPHARMA': 700,
+            'TITAN': 1200,
+            'ULTRACEMCO': 200,
+            'NESTLEIND': 100,
+            'POWERGRID': 2100,
+            'NTPC': 2500,
+            'ONGC': 3700,
+            'COALINDIA': 4600,
+            'TATAMOTORS': 2500,
+            'TATASTEEL': 1100,
+            'WIPRO': 1200,
+            'HCLTECH': 250,
+            'TECHM': 400,
+            'JSWSTEEL': 800,
+            'INDUSINDBK': 1800,
+            'ADANIGREEN': 2400,
+            'ADANIPORTS': 1200,
+            'BAJFINANCE': 125,
+            'BAJAJFINSV': 400,
+            'DRREDDY': 125,
+            'CIPLA': 800,
+            'DIVISLAB': 200,
+            'EICHERMOT': 400,
+            'HEROMOTOCO': 700,
+            'GRASIM': 600,
+            'JSWENERGY': 5000,
+            'BPCL': 1100,
+            'IOC': 1000,
+            'HINDALCO': 3700,
+            'VEDL': 4800,
+            'SAIL': 7200,
+            'NMDC': 3300
+        };
+        
         this.initializeEventListeners();
         this.setDefaultExpiryDate();
         this.updateDataModeDisplay();
+    }
+
+    getLotSize(symbol) {
+        return this.lotSizes[symbol] || 1; // Default to 1 if not found
+    }
+
+    updateLotSizeDisplay(symbol, lotSize) {
+        const lotSizeInfo = document.getElementById('lotSizeInfo');
+        if (lotSizeInfo) {
+            const lotSizeValue = document.getElementById('lotSizeValue');
+            const totalShares = document.getElementById('totalShares');
+            
+            if (lotSizeValue && totalShares) {
+                lotSizeValue.textContent = lotSize;
+                totalShares.textContent = lotSize;
+                lotSizeInfo.style.display = 'block';
+            }
+        }
     }
 
     initializeEventListeners() {
@@ -19,10 +87,19 @@ class OptionsPremiumCalculator {
         });
         
         // Real-time calculation on input changes
-        ['stockSymbol', 'strikePrice', 'quantity', 'expiryDate'].forEach(id => {
+        ['stockSymbol', 'strikePrice', 'expiryDate'].forEach(id => {
             const element = document.getElementById(id);
             if (element) {
                 element.addEventListener('input', () => {
+                    // Update lot size display when stock symbol changes
+                    if (id === 'stockSymbol') {
+                        const symbol = element.value.trim().toUpperCase();
+                        if (symbol) {
+                            const lotSize = this.getLotSize(symbol);
+                            this.updateLotSizeDisplay(symbol, lotSize);
+                        }
+                    }
+                    
                     if (this.hasValidInputs()) {
                         this.debouncedCalculate();
                     }
@@ -64,10 +141,9 @@ class OptionsPremiumCalculator {
     hasValidInputs() {
         const stockSymbol = document.getElementById('stockSymbol')?.value.trim();
         const strikePrice = parseFloat(document.getElementById('strikePrice')?.value || '0');
-        const quantity = parseInt(document.getElementById('quantity')?.value || '0');
         const expiryDate = document.getElementById('expiryDate')?.value;
 
-        return stockSymbol && strikePrice > 0 && quantity > 0 && expiryDate;
+        return stockSymbol && strikePrice > 0 && expiryDate;
     }
 
     async calculatePremium() {
@@ -84,8 +160,13 @@ class OptionsPremiumCalculator {
 
         const stockSymbol = document.getElementById('stockSymbol').value.trim().toUpperCase();
         const strikePrice = parseFloat(document.getElementById('strikePrice').value);
-        const quantity = parseInt(document.getElementById('quantity').value);
         const expiryDate = document.getElementById('expiryDate').value;
+        
+        // Get lot size for the stock
+        const lotSize = this.getLotSize(stockSymbol);
+        
+        // Update lot size display
+        this.updateLotSizeDisplay(stockSymbol, lotSize);
 
         const calculateBtn = document.getElementById('calculatePremium');
         const originalText = calculateBtn.textContent;
@@ -130,14 +211,14 @@ class OptionsPremiumCalculator {
                 this.volatility
             );
 
-            const totalPremium = premium * quantity;
+            const totalPremium = premium * lotSize;
 
             this.displayResults({
                 premium: premium,
                 totalPremium: totalPremium,
                 currentPrice: currentPrice,
                 strikePrice: strikePrice,
-                quantity: quantity,
+                quantity: lotSize,
                 stockSymbol: stockSymbol,
                 expiryDate: expiryDate
             });
