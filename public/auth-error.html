@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Error - Options Premium Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ff7b7b 0%, #d63031 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .error-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .error-icon {
+            font-size: 4rem;
+            color: #d63031;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            color: #d63031;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .error-details {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+            border: 1px solid #f5c6cb;
+            word-break: break-word;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-decoration: none;
+            display: inline-block;
+            margin: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .btn.secondary {
+            background: linear-gradient(135deg, #6c757d, #5a6268);
+        }
+
+        .btn.secondary:hover {
+            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
+        }
+
+        .troubleshooting {
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+            text-align: left;
+        }
+
+        .troubleshooting h3 {
+            color: #1976d2;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .troubleshooting ul {
+            margin-left: 1rem;
+            color: #555;
+        }
+
+        .troubleshooting li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-icon">⚠️</div>
+        <h1>Authentication Failed</h1>
+        <p>There was an issue connecting your Zerodha account.</p>
+        
+        <div class="error-details" id="errorDetails">
+            <strong>Error:</strong> <span id="errorMessage">Unknown error occurred</span>
+        </div>
+
+        <div class="troubleshooting">
+            <h3>🔧 Troubleshooting Tips:</h3>
+            <ul>
+                <li>Make sure you're logged into your Zerodha account</li>
+                <li>Check that you clicked "Allow" when prompted by Zerodha</li>
+                <li>Ensure your internet connection is stable</li>
+                <li>Try logging out and back into the Options Calculator</li>
+                <li>Clear your browser cache and cookies</li>
+            </ul>
+        </div>
+
+        <div>
+            <a href="/" class="btn">Return to App</a>
+            <a href="#" class="btn secondary" onclick="tryAgain()">Try Again</a>
+        </div>
+    </div>
+
+    <script>
+        // Get error from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const error = urlParams.get('error');
+
+        // Error messages mapping
+        const errorMessages = {
+            'zerodha_auth_failed': 'Zerodha authentication was cancelled or failed',
+            'no_request_token': 'No request token received from Zerodha',
+            'callback_failed': 'Authentication callback processing failed',
+            'user_not_logged_in': 'You need to be logged in to connect Zerodha',
+            'token_exchange_failed': 'Failed to exchange request token for access token'
+        };
+
+        // Display appropriate error message
+        function displayError() {
+            const errorMessage = errorMessages[error] || 'An unknown error occurred during authentication';
+            document.getElementById('errorMessage').textContent = errorMessage;
+            
+            // Log error for debugging
+            console.error('Zerodha authentication error:', error, errorMessage);
+        }
+
+        // Try again function
+        function tryAgain() {
+            // Check if user is logged in
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+                alert('Please log in first, then try connecting Zerodha again.');
+                window.location.href = '/';
+                return;
+            }
+
+            // Get new auth URL and redirect
+            fetch('/api/zerodha/auth-url', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.data.authUrl;
+                } else {
+                    alert('Failed to get authentication URL: ' + data.error);
+                }
+            })
+            .catch(err => {
+                console.error('Failed to get auth URL:', err);
+                alert('Failed to get authentication URL. Please try again later.');
+            });
+        }
+
+        // Initialize error display
+        displayError();
+
+        // Auto-redirect to home after 30 seconds
+        setTimeout(() => {
+            if (confirm('Would you like to return to the main app?')) {
+                window.location.href = '/';
+            }
+        }, 30000);
+    </script>
+</body>
+</html>

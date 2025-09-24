@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Options Dekho</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            color: #4a5568;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        input[type="email"],
+        input[type="password"],
+        input[type="text"] {
+            width: 100%;
+            padding: 0.875rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+            background: white;
+        }
+
+        input[type="email"]:focus,
+        input[type="password"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .auth-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 0.875rem;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 1rem;
+        }
+
+        .auth-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .auth-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .auth-switch {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .auth-switch a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .auth-switch a:hover {
+            text-decoration: underline;
+        }
+
+        .back-link {
+            position: absolute;
+            top: 2rem;
+            left: 2rem;
+            color: rgba(255, 255, 255, 0.9);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .back-link:hover {
+            color: white;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .success-message {
+            background: #c6f6d5;
+            color: #25543e;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .auth-form {
+            display: block;
+        }
+
+        .auth-form.hidden {
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            .auth-container {
+                padding: 2rem;
+                margin: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/landing.html" class="back-link">← Back</a>
+    
+    <div class="auth-container">
+        <div class="logo">🎯</div>
+        
+        <!-- Login Form -->
+        <div id="loginForm" class="auth-form">
+            <h1>Welcome Back</h1>
+            <p class="subtitle">Sign in to your Options Dekho account</p>
+            
+            <div id="loginError" class="error-message" style="display: none;"></div>
+            
+            <form id="loginFormElement">
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" required>
+                </div>
+                
+                <button type="submit" class="auth-btn" id="loginBtn">Sign In</button>
+            </form>
+            
+            <p class="auth-switch">
+                Don't have an account? 
+                <a href="#" onclick="showSignup()">Create one here</a>
+            </p>
+        </div>
+        
+        <!-- Signup Form -->
+        <div id="signupForm" class="auth-form hidden">
+            <h1>Create Account</h1>
+            <p class="subtitle">Join Options Dekho to get started</p>
+            
+            <div id="signupError" class="error-message" style="display: none;"></div>
+            <div id="signupSuccess" class="success-message" style="display: none;"></div>
+            
+            <form id="signupFormElement">
+                <div class="form-group">
+                    <label for="signupName">Full Name</label>
+                    <input type="text" id="signupName" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="signupEmail">Email</label>
+                    <input type="email" id="signupEmail" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <input type="password" id="signupPassword" required minlength="6">
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <input type="password" id="confirmPassword" required minlength="6">
+                </div>
+                
+                <button type="submit" class="auth-btn" id="signupBtn">Create Account</button>
+            </form>
+            
+            <p class="auth-switch">
+                Already have an account? 
+                <a href="#" onclick="showLogin()">Sign in here</a>
+            </p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Simple form switching
+        function showLogin() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('signupForm').classList.add('hidden');
+        }
+        
+        function showSignup() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('signupForm').classList.remove('hidden');
+        }
+        
+        // Make functions global
+        window.showLogin = showLogin;
+        window.showSignup = showSignup;
+        
+        // Helper functions
+        function showError(elementId, message) {
+            const errorEl = document.getElementById(elementId);
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+        
+        function hideError(elementId) {
+            document.getElementById(elementId).style.display = 'none';
+        }
+        
+        function showSuccess(elementId, message) {
+            const successEl = document.getElementById(elementId);
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+        }
+        
+        // Login form handler
+        document.getElementById('loginFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError('loginError');
+            
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const loginBtn = document.getElementById('loginBtn');
+            
+            try {
+                loginBtn.disabled = true;
+                loginBtn.textContent = 'Signing in...';
+                
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Store token and redirect
+                    localStorage.setItem('authToken', result.data.token);
+                    localStorage.setItem('userInfo', JSON.stringify(result.data.user));
+                    
+                    // Redirect to main app
+                    window.location.href = '/app';
+                } else {
+                    showError('loginError', result.error || 'Login failed');
+                }
+                
+            } catch (error) {
+                showError('loginError', 'Network error. Please try again.');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+        });
+        
+        // Signup form handler
+        document.getElementById('signupFormElement').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideError('signupError');
+            document.getElementById('signupSuccess').style.display = 'none';
+            
+            const name = document.getElementById('signupName').value;
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const signupBtn = document.getElementById('signupBtn');
+            
+            if (password !== confirmPassword) {
+                showError('signupError', 'Passwords do not match');
+                return;
+            }
+            
+            try {
+                signupBtn.disabled = true;
+                signupBtn.textContent = 'Creating account...';
+                
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name, email, password })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    // Store token and redirect
+                    localStorage.setItem('authToken', result.data.token);
+                    localStorage.setItem('userInfo', JSON.stringify(result.data.user));
+                    
+                    showSuccess('signupSuccess', 'Account created successfully! Redirecting...');
+                    
+                    setTimeout(() => {
+                        window.location.href = '/app';
+                    }, 1500);
+                } else {
+                    showError('signupError', result.error || 'Registration failed');
+                }
+                
+            } catch (error) {
+                showError('signupError', 'Network error. Please try again.');
+            } finally {
+                signupBtn.disabled = false;
+                signupBtn.textContent = 'Create Account';
+            }
+        });
+    </script>
+</body>
+</html>
