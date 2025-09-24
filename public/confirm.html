@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Confirmation - Options Dekho</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .confirmation-container {
+            text-align: center;
+            max-width: 500px;
+            padding: 3rem 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .message {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .status {
+            padding: 1rem 2rem;
+            border-radius: 10px;
+            margin: 2rem 0;
+            font-weight: 600;
+        }
+
+        .success {
+            background: rgba(72, 187, 120, 0.2);
+            border: 1px solid rgba(72, 187, 120, 0.3);
+            color: #68d391;
+        }
+
+        .error {
+            background: rgba(245, 101, 101, 0.2);
+            border: 1px solid rgba(245, 101, 101, 0.3);
+            color: #fc8181;
+        }
+
+        .loading {
+            background: rgba(66, 153, 225, 0.2);
+            border: 1px solid rgba(66, 153, 225, 0.3);
+            color: #63b3ed;
+        }
+
+        .continue-btn {
+            background: rgba(255, 255, 255, 0.95);
+            color: #4a5568;
+            padding: 1rem 2.5rem;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .continue-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        .continue-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #4a5568;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="confirmation-container">
+        <div class="icon">📧</div>
+        <h1>Email Confirmation</h1>
+        
+        <!-- Loading State -->
+        <div id="loadingState">
+            <div class="status loading">
+                <div class="spinner"></div>
+                Confirming your email...
+            </div>
+        </div>
+
+        <!-- Success State -->
+        <div id="successState" class="hidden">
+            <div class="status success">
+                ✅ Email confirmed successfully!
+            </div>
+            <p class="message">Your account has been activated. You can now sign in to Options Dekho.</p>
+            <button id="continueBtn" class="continue-btn">Continue to Sign In</button>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden">
+            <div class="status error">
+                ❌ Confirmation failed
+            </div>
+            <p class="message" id="errorMessage">There was an issue confirming your email. Please try again or contact support.</p>
+            <button id="retryBtn" class="continue-btn">Back to Sign In</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2';
+
+        // Initialize Supabase client
+        const supabaseUrl = 'https://hjxftnabwreuryngarax.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqeGZ0bmFid3JldXJ5bmdhcmF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2OTI3NTAsImV4cCI6MjA3NDI2ODc1MH0.NrXQYhsPhTHyEmEQzhTJvADQyCaaT_ghRNgS4RMY4Yk';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+        // Handle email confirmation
+        async function handleEmailConfirmation() {
+            try {
+                // Get URL fragments (Supabase uses fragments for tokens)
+                const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                const accessToken = hashParams.get('access_token');
+                const refreshToken = hashParams.get('refresh_token');
+                const type = hashParams.get('type');
+
+                if (type === 'signup' && accessToken) {
+                    // Set the session
+                    const { data, error } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken
+                    });
+
+                    if (error) {
+                        throw error;
+                    }
+
+                    // Show success
+                    showSuccess();
+                } else {
+                    // Check if user is already signed in
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) {
+                        showSuccess();
+                    } else {
+                        throw new Error('Invalid confirmation link or token expired');
+                    }
+                }
+            } catch (error) {
+                console.error('Email confirmation error:', error);
+                showError(error.message);
+            }
+        }
+
+        function showSuccess() {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('errorState').classList.add('hidden');
+            document.getElementById('successState').classList.remove('hidden');
+        }
+
+        function showError(message) {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('successState').classList.add('hidden');
+            document.getElementById('errorState').classList.remove('hidden');
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        // Event listeners
+        document.getElementById('continueBtn').addEventListener('click', () => {
+            window.location.href = '/auth';
+        });
+
+        document.getElementById('retryBtn').addEventListener('click', () => {
+            window.location.href = '/auth';
+        });
+
+        // Start confirmation process
+        handleEmailConfirmation();
+    </script>
+</body>
+</html>

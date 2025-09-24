@@ -12,6 +12,10 @@
     {
       "source": "/app",
       "destination": "/app.html"
+    },
+    {
+      "source": "/confirm",
+      "destination": "/confirm.html"
     }
   ],
   "headers": [

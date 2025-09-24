@@ -450,14 +450,33 @@
             }
         });
 
-        // Check if user is returning from OAuth
+        // Check if user is returning from OAuth or email confirmation
         supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' && session) {
                 // Store session data
                 localStorage.setItem('supabaseSession', JSON.stringify(session));
                 
-                // Redirect to app
-                window.location.href = '/app';
+                // Check if this is email confirmation
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('confirmed') === 'true') {
+                    showSuccess('loginError', 'Email confirmed successfully! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/app';
+                    }, 2000);
+                } else {
+                    // Redirect to app
+                    window.location.href = '/app';
+                }
+            }
+        });
+
+        // Check URL parameters for confirmation
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('confirmed') === 'true') {
+                showSuccess('loginError', 'Email confirmed successfully! You can now sign in.');
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
             }
         });
         
@@ -544,7 +563,8 @@
                     options: {
                         data: {
                             full_name: name
-                        }
+                        },
+                        emailRedirectTo: `${window.location.origin}/confirm`
                     }
                 });
 
