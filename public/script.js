@@ -96,29 +96,51 @@ class PutOptionsLTPFinder {
             this.showLoginPrompt();
         } catch (error) {
             console.error('Authentication check failed:', error);
+            // If Supabase still has a session, proceed
+            if (window.supabase) {
+                const { data: { session } } = await window.supabase.auth.getSession();
+                if (session) {
+                    this.token = session.access_token;
+                    await this.loadUserProfile();
+                    return;
+                }
+            }
             this.showLoginPrompt();
         }
     }
 
     async loadUserProfile() {
         try {
-            const response = await fetch('/api/users/profile', {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
+            // Prefer Supabase user details (works on Vercel static hosting)
+            if (window.supabase) {
+                const { data: { user }, error } = await window.supabase.auth.getUser();
+                if (user && !error) {
+                    const name = user.user_metadata?.full_name || user.user_metadata?.name || (user.email?.split('@')[0] || 'User');
+                    this.updateUserInfo({ name, email: user.email });
+                    return;
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error('Authentication failed');
             }
 
+            // Fallback: use backend profile if available
+            const response = await fetch('/api/users/profile', {
+                headers: { 'Authorization': `Bearer ${this.token}` }
+            });
+            if (!response.ok) throw new Error('Backend profile unavailable');
             const userData = await response.json();
             this.updateUserInfo(userData.data);
-
         } catch (error) {
             console.error('Failed to load profile:', error);
-            localStorage.removeItem('authToken');
-            this.token = null;
+            // If Supabase session exists, keep user in app; else prompt login
+            if (window.supabase) {
+                const { data: { session } } = await window.supabase.auth.getSession();
+                if (session) {
+                    this.updateUserInfo({
+                        name: 'User',
+                        email: session.user?.email || ''
+                    });
+                    return;
+                }
+            }
             this.showLoginPrompt();
         }
     }
@@ -191,18 +213,15 @@ class PutOptionsLTPFinder {
 
     async isZerodhaConnected() {
         try {
+            if (!this.token) return false;
             const response = await fetch('/api/users/profile', {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
+                headers: { 'Authorization': `Bearer ${this.token}` }
             });
-
             if (!response.ok) return false;
-
             const userData = await response.json();
             return userData.data?.zerodha_connected || false;
         } catch (error) {
-            console.error('Failed to check Zerodha connection:', error);
+            console.warn('Zerodha connection check skipped/unavailable:', error?.message || error);
             return false;
         }
     }
