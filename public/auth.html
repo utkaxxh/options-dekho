@@ -381,7 +381,15 @@
 
             } catch (error) {
                 console.error('Google sign-in failed:', error);
-                showError('loginError', 'Google sign-in failed: ' + error.message);
+                
+                let errorMessage = 'Google sign-in failed';
+                if (error.message.includes('OAuth') || error.message.includes('redirect_uri')) {
+                    errorMessage = 'Google OAuth is not configured yet. Please use email/password login for now.';
+                } else {
+                    errorMessage += ': ' + error.message;
+                }
+                
+                showError('loginError', errorMessage);
                 
                 // Reset button
                 googleBtn.disabled = false;
@@ -418,7 +426,15 @@
 
             } catch (error) {
                 console.error('Google sign-up failed:', error);
-                showError('signupError', 'Google sign-up failed: ' + error.message);
+                
+                let errorMessage = 'Google sign-up failed';
+                if (error.message.includes('OAuth') || error.message.includes('redirect_uri')) {
+                    errorMessage = 'Google OAuth is not configured yet. Please use email/password signup for now.';
+                } else {
+                    errorMessage += ': ' + error.message;
+                }
+                
+                showError('signupError', errorMessage);
                 
                 // Reset button
                 googleBtn.disabled = false;
