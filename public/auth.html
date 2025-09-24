@@ -105,6 +105,56 @@
             transform: none;
         }
 
+        .google-btn {
+            width: 100%;
+            background: white;
+            color: #4285f4;
+            border: 2px solid #e2e8f0;
+            padding: 0.875rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .google-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(66, 133, 244, 0.2);
+            border-color: #4285f4;
+        }
+
+        .google-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        .divider span {
+            padding: 0 1rem;
+        }
+
         .auth-switch {
             color: #718096;
             font-size: 0.9rem;
@@ -181,6 +231,20 @@
             
             <div id="loginError" class="error-message" style="display: none;"></div>
             
+            <button type="button" class="google-btn" id="googleLoginBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34a853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#fbbc05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#ea4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+            </button>
+            
+            <div class="divider">
+                <span>or</span>
+            </div>
+            
             <form id="loginFormElement">
                 <div class="form-group">
                     <label for="loginEmail">Email</label>
@@ -208,6 +272,20 @@
             
             <div id="signupError" class="error-message" style="display: none;"></div>
             <div id="signupSuccess" class="success-message" style="display: none;"></div>
+            
+            <button type="button" class="google-btn" id="googleSignupBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24">
+                    <path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34a853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#fbbc05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#ea4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Sign up with Google
+            </button>
+            
+            <div class="divider">
+                <span>or</span>
+            </div>
             
             <form id="signupFormElement">
                 <div class="form-group">
@@ -241,6 +319,14 @@
     </div>
 
     <script type="module">
+        import { createClient } from 'https://cdn.skypack.dev/@supabase/supabase-js@2';
+
+        // Initialize Supabase client
+        const supabaseUrl = 'https://hjxftnabwreuryngarax.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqeGZ0bmFid3JldXJ5bmdhcmF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg2OTI3NTAsImV4cCI6MjA3NDI2ODc1MH0.NrXQYhsPhTHyEmEQzhTJvADQyCaaT_ghRNgS4RMY4Yk';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
         // Simple form switching
         function showLogin() {
             document.getElementById('loginForm').classList.remove('hidden');
@@ -272,6 +358,92 @@
             successEl.textContent = message;
             successEl.style.display = 'block';
         }
+
+        // Google Sign-In handlers
+        document.getElementById('googleLoginBtn').addEventListener('click', async () => {
+            const googleBtn = document.getElementById('googleLoginBtn');
+            
+            try {
+                googleBtn.disabled = true;
+                googleBtn.innerHTML = `
+                    <div style="width: 20px; height: 20px; border: 2px solid #4285f4; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;"></div>
+                    Signing in with Google...
+                `;
+
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: `${window.location.origin}/app`
+                    }
+                });
+
+                if (error) throw error;
+
+            } catch (error) {
+                console.error('Google sign-in failed:', error);
+                showError('loginError', 'Google sign-in failed: ' + error.message);
+                
+                // Reset button
+                googleBtn.disabled = false;
+                googleBtn.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                        <path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34a853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#fbbc05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#ea4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Continue with Google
+                `;
+            }
+        });
+
+        document.getElementById('googleSignupBtn').addEventListener('click', async () => {
+            const googleBtn = document.getElementById('googleSignupBtn');
+            
+            try {
+                googleBtn.disabled = true;
+                googleBtn.innerHTML = `
+                    <div style="width: 20px; height: 20px; border: 2px solid #4285f4; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;"></div>
+                    Signing up with Google...
+                `;
+
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: {
+                        redirectTo: `${window.location.origin}/app`
+                    }
+                });
+
+                if (error) throw error;
+
+            } catch (error) {
+                console.error('Google sign-up failed:', error);
+                showError('signupError', 'Google sign-up failed: ' + error.message);
+                
+                // Reset button
+                googleBtn.disabled = false;
+                googleBtn.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24">
+                        <path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34a853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#fbbc05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#ea4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Sign up with Google
+                `;
+            }
+        });
+
+        // Check if user is returning from OAuth
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                // Store session data
+                localStorage.setItem('supabaseSession', JSON.stringify(session));
+                
+                // Redirect to app
+                window.location.href = '/app';
+            }
+        });
         
         // Login form handler
         document.getElementById('loginFormElement').addEventListener('submit', async (e) => {
@@ -286,6 +458,19 @@
                 loginBtn.disabled = true;
                 loginBtn.textContent = 'Signing in...';
                 
+                // Try Supabase auth first
+                const { data: supabaseData, error: supabaseError } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+
+                if (supabaseData?.user) {
+                    localStorage.setItem('supabaseSession', JSON.stringify(supabaseData.session));
+                    window.location.href = '/app';
+                    return;
+                }
+
+                // Fallback to custom backend
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
                     headers: {
@@ -336,6 +521,28 @@
                 signupBtn.disabled = true;
                 signupBtn.textContent = 'Creating account...';
                 
+                // Try Supabase auth first
+                const { data: supabaseData, error: supabaseError } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: name
+                        }
+                    }
+                });
+
+                if (supabaseData?.user) {
+                    if (supabaseData.session) {
+                        localStorage.setItem('supabaseSession', JSON.stringify(supabaseData.session));
+                        window.location.href = '/app';
+                    } else {
+                        showSuccess('signupSuccess', 'Please check your email to confirm your account!');
+                    }
+                    return;
+                }
+
+                // Fallback to custom backend
                 const response = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: {
@@ -367,6 +574,15 @@
                 signupBtn.textContent = 'Create Account';
             }
         });
+
+        // Add spinning animation CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
