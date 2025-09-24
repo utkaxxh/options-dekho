@@ -68,14 +68,36 @@ class PutOptionsLTPFinder {
         this.checkZerodhaConnection();
     }
 
-    checkAuthenticationStatus() {
-        if (!this.token) {
-            window.location.href = '/login.html';
-            return;
+    async checkAuthenticationStatus() {
+        try {
+            // Check for Supabase session first
+            if (window.supabase) {
+                const { data: { session }, error } = await window.supabase.auth.getSession();
+                if (session && !error) {
+                    this.token = session.access_token;
+                    localStorage.setItem('authToken', session.access_token);
+                    localStorage.setItem('supabaseSession', JSON.stringify(session));
+                    
+                    // Load user profile and show main app
+                    await this.loadUserProfile();
+                    return;
+                }
+            }
+            
+            // Fallback to stored token
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                this.token = token;
+                await this.loadUserProfile();
+                return;
+            }
+            
+            // No valid authentication found
+            this.showLoginPrompt();
+        } catch (error) {
+            console.error('Authentication check failed:', error);
+            this.showLoginPrompt();
         }
-
-        // Load user profile
-        this.loadUserProfile();
     }
 
     async loadUserProfile() {
@@ -96,7 +118,8 @@ class PutOptionsLTPFinder {
         } catch (error) {
             console.error('Failed to load profile:', error);
             localStorage.removeItem('authToken');
-            window.location.href = '/login.html';
+            this.token = null;
+            this.showLoginPrompt();
         }
     }
 
@@ -106,6 +129,51 @@ class PutOptionsLTPFinder {
 
         if (userNameEl) userNameEl.textContent = user.name || 'User';
         if (userEmailEl) userEmailEl.textContent = user.email || '';
+        
+        // Show the main app and hide login prompt after successful authentication
+        this.showMainApp();
+    }
+
+    showMainApp() {
+        const loginPrompt = document.getElementById('loginPrompt');
+        const mainApp = document.getElementById('mainApp');
+        const userProfile = document.getElementById('userProfile');
+
+        // Hide login prompt
+        if (loginPrompt) {
+            loginPrompt.style.display = 'none';
+        }
+
+        // Show main app
+        if (mainApp) {
+            mainApp.style.display = 'block';
+        }
+
+        // Show user profile header
+        if (userProfile) {
+            userProfile.style.display = 'flex';
+        }
+    }
+
+    showLoginPrompt() {
+        const loginPrompt = document.getElementById('loginPrompt');
+        const mainApp = document.getElementById('mainApp');
+        const userProfile = document.getElementById('userProfile');
+
+        // Show login prompt
+        if (loginPrompt) {
+            loginPrompt.style.display = 'block';
+        }
+
+        // Hide main app
+        if (mainApp) {
+            mainApp.style.display = 'none';
+        }
+
+        // Hide user profile header
+        if (userProfile) {
+            userProfile.style.display = 'none';
+        }
     }
 
     updateDataModeDisplay(mode = null) {
@@ -432,9 +500,23 @@ class PutOptionsLTPFinder {
         console.error('Error:', message);
     }
 
-    logout() {
+    async logout() {
+        try {
+            // Sign out from Supabase if available
+            if (window.supabase) {
+                await window.supabase.auth.signOut();
+            }
+        } catch (error) {
+            console.error('Error signing out from Supabase:', error);
+        }
+        
+        // Clear local storage
         localStorage.removeItem('authToken');
-        window.location.href = '/login.html';
+        localStorage.removeItem('supabaseSession');
+        
+        // Reset app state
+        this.token = null;
+        this.showLoginPrompt();
     }
 
     async checkZerodhaConnection() {
@@ -625,6 +707,232 @@ class PutOptionsLTPFinder {
             console.error('Zerodha disconnection failed:', error);
             this.showError(error.message || 'Failed to disconnect from Zerodha');
         }
+    }
+}
+
+// Global functions for authentication modal
+function showAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) {
+        modal.style.display = 'block';
+        showLoginForm();
+    }
+}
+
+function closeAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function showLoginForm() {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    
+    if (loginForm) loginForm.style.display = 'block';
+    if (registerForm) registerForm.style.display = 'none';
+}
+
+function showRegisterForm() {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    
+    if (loginForm) loginForm.style.display = 'none';
+    if (registerForm) registerForm.style.display = 'block';
+}
+
+async function handleLogin(event) {
+    event.preventDefault();
+    
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    const errorDiv = document.getElementById('loginError');
+    
+    if (!email || !password) {
+        errorDiv.textContent = 'Please fill in both email and password';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    try {
+        submitBtn.textContent = 'Signing in...';
+        submitBtn.disabled = true;
+        errorDiv.style.display = 'none';
+        
+        // Try Supabase authentication first
+        if (window.supabase) {
+            const { data, error } = await window.supabase.auth.signInWithPassword({
+                email: email,
+                password: password
+            });
+            
+            if (data.session && !error) {
+                localStorage.setItem('authToken', data.session.access_token);
+                localStorage.setItem('supabaseSession', JSON.stringify(data.session));
+                closeAuthModal();
+                
+                // Reinitialize the app with the new token
+                if (window.putOptionsLTPFinder) {
+                    window.putOptionsLTPFinder.token = data.session.access_token;
+                    window.putOptionsLTPFinder.checkAuthenticationStatus();
+                }
+                return;
+            }
+            
+            // If Supabase auth fails, fall back to server auth
+            if (error && !error.message.includes('Invalid login credentials')) {
+                console.warn('Supabase auth failed, trying server auth:', error.message);
+            }
+        }
+        
+        // Fallback to server authentication
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Login failed');
+        }
+        
+        if (result.success && result.data.token) {
+            localStorage.setItem('authToken', result.data.token);
+            closeAuthModal();
+            
+            // Reinitialize the app with the new token
+            if (window.putOptionsLTPFinder) {
+                window.putOptionsLTPFinder.token = result.data.token;
+                window.putOptionsLTPFinder.checkAuthenticationStatus();
+            }
+        } else {
+            throw new Error('Invalid response from server');
+        }
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        errorDiv.textContent = error.message || 'Login failed. Please try again.';
+        errorDiv.style.display = 'block';
+    } finally {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+}
+
+async function handleRegister(event) {
+    event.preventDefault();
+    
+    const name = document.getElementById('registerName').value;
+    const email = document.getElementById('registerEmail').value;
+    const password = document.getElementById('registerPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    const errorDiv = document.getElementById('registerError');
+    
+    if (!name || !email || !password) {
+        errorDiv.textContent = 'Please fill in all fields';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        errorDiv.textContent = 'Passwords do not match';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    try {
+        submitBtn.textContent = 'Creating account...';
+        submitBtn.disabled = true;
+        errorDiv.style.display = 'none';
+        
+        // Try Supabase authentication first
+        if (window.supabase) {
+            const { data, error } = await window.supabase.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: {
+                        full_name: name
+                    }
+                }
+            });
+            
+            if (data.session && !error) {
+                localStorage.setItem('authToken', data.session.access_token);
+                localStorage.setItem('supabaseSession', JSON.stringify(data.session));
+                closeAuthModal();
+                
+                // Reinitialize the app with the new token
+                if (window.putOptionsLTPFinder) {
+                    window.putOptionsLTPFinder.token = data.session.access_token;
+                    window.putOptionsLTPFinder.checkAuthenticationStatus();
+                }
+                return;
+            }
+            
+            // If no session but no error, user needs to confirm email
+            if (data.user && !data.session && !error) {
+                errorDiv.textContent = 'Please check your email to confirm your account before signing in.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            // If Supabase signup fails, fall back to server auth
+            if (error && !error.message.includes('User already registered')) {
+                console.warn('Supabase signup failed, trying server auth:', error.message);
+            }
+        }
+        
+        // Fallback to server authentication
+        const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name, email, password })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Registration failed');
+        }
+        
+        if (result.success && result.data.token) {
+            localStorage.setItem('authToken', result.data.token);
+            closeAuthModal();
+            
+            // Reinitialize the app with the new token
+            if (window.putOptionsLTPFinder) {
+                window.putOptionsLTPFinder.token = result.data.token;
+                window.putOptionsLTPFinder.checkAuthenticationStatus();
+            }
+        } else {
+            throw new Error('Invalid response from server');
+        }
+        
+    } catch (error) {
+        console.error('Registration error:', error);
+        errorDiv.textContent = error.message || 'Registration failed. Please try again.';
+        errorDiv.style.display = 'block';
+    } finally {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+}
+
+function handleLogout() {
+    if (window.putOptionsLTPFinder) {
+        window.putOptionsLTPFinder.logout();
     }
 }
 

@@ -137,15 +137,18 @@ app.post('/api/auth/register', async (req, res) => {
 // Login
 app.post('/api/auth/login', async (req, res) => {
   try {
+    console.log('Login request received:', { email: req.body.email, body: !!req.body });
     const { email, password } = req.body;
 
     if (!email || !password) {
+      console.log('Login failed: Missing email or password');
       return res.status(400).json({ 
         success: false, 
         error: 'Email and password are required' 
       });
     }
 
+    console.log('Looking up user in database:', email);
     // Get user from database
     const { data: user, error } = await supabase
       .from('users')
