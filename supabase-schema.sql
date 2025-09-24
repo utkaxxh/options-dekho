@@ -1,8 +1,7 @@
 -- Options Premium Calculator Database Schema
 -- Run this in your Supabase SQL editor
 
--- Enable Row Level Security
-ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret-here';
+-- Note: Supabase manages JWT secrets automatically, no need to set them manually
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS public.users (
@@ -117,25 +116,49 @@ ALTER TABLE public.option_strategies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trades ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
+-- Note: These policies assume integration with Supabase Auth
+-- For custom authentication, you may need to adjust these policies
 
--- Users can only see their own data
+-- Users can only see their own data (assuming email matches auth.email())
 CREATE POLICY "Users can view own profile" ON public.users
-    FOR SELECT USING (auth.uid()::text = id::text);
+    FOR SELECT USING (auth.email() = email);
 
 CREATE POLICY "Users can update own profile" ON public.users
-    FOR UPDATE USING (auth.uid()::text = id::text);
+    FOR UPDATE USING (auth.email() = email);
+
+-- Allow users to insert their own profile (for registration)
+CREATE POLICY "Users can insert own profile" ON public.users
+    FOR INSERT WITH CHECK (auth.email() = email);
 
 -- User preferences policies
 CREATE POLICY "Users can manage own preferences" ON public.user_preferences
-    FOR ALL USING (auth.uid()::text = user_id::text);
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = user_preferences.user_id 
+            AND users.email = auth.email()
+        )
+    );
 
--- Option strategies policies
+-- Option strategies policies  
 CREATE POLICY "Users can manage own strategies" ON public.option_strategies
-    FOR ALL USING (auth.uid()::text = user_id::text);
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = option_strategies.user_id 
+            AND users.email = auth.email()
+        )
+    );
 
 -- Trades policies
 CREATE POLICY "Users can manage own trades" ON public.trades
-    FOR ALL USING (auth.uid()::text = user_id::text);
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = trades.user_id 
+            AND users.email = auth.email()
+        )
+    );
 
 -- Create functions for updated_at timestamps
 CREATE OR REPLACE FUNCTION public.handle_updated_at()

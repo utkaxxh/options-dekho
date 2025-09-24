@@ -1,25 +1,89 @@
-# Google OAuth Setup Guide
+# Google OAuth Setup Guide - EXACT STEPS
 
-## 🚀 Step 1: Google Cloud Console
+## � CRITICAL: Your Exact Error Fix
 
-1. **Create OAuth Credentials:**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Navigate to **APIs & Services** → **Credentials**
-   - Click **Create Credentials** → **OAuth 2.0 Client IDs**
+**Error**: `redirect_uri=https://hjxftnabwreuryngarax.supabase.co/auth/v1/callback`
+
+**Solution**: Add this EXACT URL to Google Cloud Console
+
+## �🚀 Step 1: Google Cloud Console (MANDATORY)
+
+1. **Go to Google Cloud Console:**
+   - Visit: https://console.cloud.google.com/
+
+2. **Create/Select Project:**
+   - Create new project: "Options Dekho" 
+   - Or select existing project
+
+3. **Enable APIs:**
+   - **APIs & Services** → **Library**
+   - Search "Google+ API" → **Enable**
+
+4. **OAuth Consent Screen** (if first time):
+   - **APIs & Services** → **OAuth consent screen**
+   - User Type: **External**
+   - App name: "Options Dekho"
+   - User support email: [your-email]
+   - Developer contact: [your-email]
+   - **Save and Continue** through all steps
+
+5. **Create OAuth 2.0 Client:**
+   - **APIs & Services** → **Credentials**
+   - **+ Create Credentials** → **OAuth 2.0 Client IDs**
    - Application type: **Web application**
-   - Name: `Options Dekho App`
+   - Name: "Options Dekho Web Client"
 
-2. **Configure Authorized Redirect URIs:**
-   Add these exact URLs:
+6. **CRITICAL: Add Authorized Redirect URI:**
    ```
    https://hjxftnabwreuryngarax.supabase.co/auth/v1/callback
-   http://localhost:5000/auth/callback
-   https://options-dekho.vercel.app/auth/callback
    ```
+   ⚠️ **MUST BE EXACT** - copy/paste this URL
 
-3. **Save Credentials:**
-   - Copy the **Client ID** 
-   - Copy the **Client Secret**
+7. **Save & Copy:**
+   - **Client ID**: `1234567890-xxxxxxxx.apps.googleusercontent.com`
+   - **Client Secret**: `GOCSPX-xxxxxxxx`
+
+## 🔐 Step 2: Supabase Configuration
+
+1. **Supabase Dashboard:**
+   - https://supabase.com/dashboard/project/hjxftnabwreuryngarax
+
+2. **Enable Google Provider:**
+   - **Authentication** → **Providers**
+   - Find **Google** → **Enable**
+   - **Client ID**: [paste from Google Cloud Console]
+   - **Client Secret**: [paste from Google Cloud Console]
+   - **Save**
+
+3. **Site URL Configuration:**
+   - **Authentication** → **Settings**
+   - **Site URL**: `https://options-dekho.vercel.app`
+   - **Additional Redirect URLs**:
+     ```
+     http://localhost:5000
+     https://options-dekho.vercel.app
+     ```
+
+## ✅ Testing Steps
+
+1. **Clear browser cache/cookies**
+2. **Visit**: https://options-dekho.vercel.app/auth
+3. **Click Google Sign-In**
+4. **Should work without redirect URI error**
+
+## 🐛 Still Getting Errors?
+
+### "redirect_uri_mismatch"
+- Double-check the EXACT URL in Google Cloud Console
+- URL must be: `https://hjxftnabwreuryngarax.supabase.co/auth/v1/callback`
+
+### "invalid_client"
+- Check Client ID/Secret in Supabase matches Google Cloud Console
+- Regenerate credentials if needed
+
+### "app not verified"
+- Click "Continue" for development
+- Submit for verification for production use
 
 ## 🔐 Step 2: Supabase Configuration
 
