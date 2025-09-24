@@ -1,10 +1,19 @@
 {
   "buildCommand": "echo 'No build required for static site'",
-  "outputDirectory": ".",
+  "outputDirectory": "public",
   "devCommand": "python -m http.server 3000",
   "installCommand": "echo 'No install required for static site'",
   "framework": null,
-  "rewrites": [],
+  "rewrites": [
+    {
+      "source": "/auth",
+      "destination": "/auth.html"
+    },
+    {
+      "source": "/app",
+      "destination": "/app.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

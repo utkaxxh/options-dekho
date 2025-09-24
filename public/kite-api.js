@@ -139,8 +139,17 @@ class KiteAPIIntegration {
     }
     // Setup UI for authentication
     setupAuthUI() {
-        if (!this.sessionId && !this.hasValidMCPEnvironment()) {
+        // Don't show auth modal automatically
+        // It will be shown when user explicitly connects Zerodha
+        console.log('KiteAPI initialized, ready for authentication');
+    }
+    
+    // Manually trigger authentication modal (for Connect Zerodha button)
+    initiateAuthentication() {
+        if (!this.sessionId) {
             this.showAuthModal();
+        } else {
+            console.log('Already authenticated with Zerodha');
         }
     }
     
