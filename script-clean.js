@@ -1,4 +1,4 @@
-// Options Premium Calculator JavaScript
+// Options Premium Calculator JavaScript - Simplified Version
 
 class OptionsPremiumCalculator {
     constructor() {
@@ -53,12 +53,6 @@ class OptionsPremiumCalculator {
         return result;
     }
 
-    handleFormSubmit(e) {
-        // This method is no longer needed since we removed the form submit
-        // Keeping for compatibility but will not be called
-        e.preventDefault();
-    }
-
     validateInputs() {
         let isValid = true;
         this.clearErrors();
@@ -98,48 +92,6 @@ class OptionsPremiumCalculator {
         this.hideResults();
         this.setDefaultExpiryDate();
         this.clearErrors();
-    }
-
-    validateForm() {
-        // Redirect to the new validation method for backward compatibility
-        return this.validateInputs();
-    }
-
-    validateAndCalculate() {
-        // This method is updated to work with live data
-        if (this.lastPremiumData.options && this.validateInputs()) {
-            this.calculatePremiumFromLiveData();
-            this.showResults();
-        }
-    }
-
-    calculatePremiumFromLiveData() {
-        if (!this.lastPremiumData.options) {
-            this.showAlert('Please fetch live data first', 'warning');
-            return;
-        }
-
-        const formData = this.getFormData();
-        
-        // Find the matching strike price in live data
-        const matchingOption = this.lastPremiumData.options.find(option => 
-            Math.abs(option.strike - formData.strikePrice) < 0.01
-        );
-
-        if (!matchingOption) {
-            this.showAlert(`Strike price ${formData.strikePrice} not found in live data. Please select from the options chain.`, 'warning');
-            return;
-        }
-
-        // Use the live premium data for calculations
-        const premiumPerShare = matchingOption.put.last_price;
-        const calculations = this.performCalculations({
-            ...formData,
-            premiumPerShare: premiumPerShare
-        });
-        
-        this.updateResultsDisplay(calculations);
-        this.showResults();
     }
 
     async calculatePremium() {
@@ -264,44 +216,7 @@ class OptionsPremiumCalculator {
             'HDFCBANK': 1600,
             'ICICIBANK': 1200,
             'SBIN': 750,
-            'BHARTIARTL': 1200,
-            'DELHIVERY': 459.00,
-            'ADANIPORTS': 1245.00,
-            'ASIANPAINT': 2890.00,
-            'AXISBANK': 1150.00,
-            'BAJFINANCE': 6980.00,
-            'BAJAJFINSV': 1680.00,
-            'BPCL': 285.00,
-            'CIPLA': 1460.00,
-            'COALINDIA': 405.00,
-            'DIVISLAB': 5890.00,
-            'DRREDDY': 1245.00,
-            'EICHERMOT': 4875.00,
-            'GRASIM': 2540.00,
-            'HCLTECH': 1785.00,
-            'HEROMOTOCO': 4560.00,
-            'HINDALCO': 645.00,
-            'HINDUNILVR': 2780.00,
-            'ITC': 465.00,
-            'INDUSINDBK': 975.00,
-            'JSWSTEEL': 945.00,
-            'KOTAKBANK': 1745.00,
-            'LT': 3650.00,
-            'M&M': 2890.00,
-            'MARUTI': 10875.00,
-            'NESTLEIND': 2195.00,
-            'NTPC': 355.00,
-            'ONGC': 245.00,
-            'POWERGRID': 325.00,
-            'SUNPHARMA': 1785.00,
-            'TATACONSUM': 910.00,
-            'TATAMOTORS': 1045.00,
-            'TATASTEEL': 145.00,
-            'TECHM': 1675.00,
-            'TITAN': 3245.00,
-            'ULTRACEMCO': 10980.00,
-            'UPL': 545.00,
-            'WIPRO': 565.00
+            'BHARTIARTL': 1200
         };
         return prices[symbol] || 500;
     }
@@ -328,58 +243,6 @@ class OptionsPremiumCalculator {
             btn.innerHTML = 'Calculate Premium';
             btn.disabled = false;
         }
-    }
-
-    performCalculations(data) {
-        const totalShares = data.lotSize * data.numberOfLots;
-        const totalPremium = totalShares * data.premiumPerShare;
-        const daysToExpiry = this.calculateDaysToExpiry(data.expiryDate);
-        const dailyPremium = daysToExpiry > 0 ? totalPremium / daysToExpiry : 0;
-        
-        // Estimate margin required (approximately 15-20% of strike value for puts)
-        const marginRate = 0.18; // 18% approximate margin
-        const marginRequired = totalShares * data.strikePrice * marginRate;
-        
-        const returnOnMargin = marginRequired > 0 ? (totalPremium / marginRequired) * 100 : 0;
-        const breakeven = data.strikePrice - data.premiumPerShare;
-        
-        return {
-            totalShares,
-            totalPremium,
-            daysToExpiry,
-            dailyPremium,
-            marginRequired,
-            returnOnMargin,
-            maxProfit: totalPremium,
-            breakeven,
-            riskLevel: this.calculateRiskLevel(data.strikePrice, data.premiumPerShare)
-        };
-    }
-
-    calculateDaysToExpiry(expiryDate) {
-        const today = new Date();
-        const timeDiff = expiryDate.getTime() - today.getTime();
-        return Math.ceil(timeDiff / (1000 * 3600 * 24));
-    }
-
-    calculateRiskLevel(strikePrice, premium) {
-        const premiumPercentage = (premium / strikePrice) * 100;
-        if (premiumPercentage > 5) return 'Low';
-        if (premiumPercentage > 2) return 'Medium';
-        return 'High';
-    }
-
-    updateResultsDisplay(calculations) {
-        document.getElementById('totalPremium').textContent = this.formatCurrency(calculations.totalPremium);
-        document.getElementById('totalShares').textContent = calculations.totalShares.toLocaleString();
-        document.getElementById('daysToExpiry').textContent = calculations.daysToExpiry;
-        document.getElementById('dailyPremium').textContent = this.formatCurrency(calculations.dailyPremium);
-        document.getElementById('marginRequired').textContent = this.formatCurrency(calculations.marginRequired);
-        document.getElementById('returnOnMargin').textContent = calculations.returnOnMargin.toFixed(2) + '%';
-        document.getElementById('maxProfit').textContent = this.formatCurrency(calculations.maxProfit);
-        document.getElementById('maxLoss').textContent = 'Unlimited';
-        document.getElementById('breakeven').textContent = this.formatCurrency(calculations.breakeven);
-        document.getElementById('riskLevel').textContent = calculations.riskLevel;
     }
 
     formatCurrency(amount) {

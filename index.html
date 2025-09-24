@@ -12,7 +12,7 @@
             <h1>Options Premium Calculator</h1>
             <p>Calculate premium earned from selling put options with real-time market data</p>
             <div class="demo-notice" style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 0.9rem;">
-                💡 For live Zerodha data, use within VS Code with MCP Kite extension
+                💡 <span id="dataMode">Detecting data source...</span>
             </div>
         </header>
 
@@ -44,90 +44,25 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="button" id="fetchLiveData" class="btn btn-primary">Get Premium Data</button>
-                    <button type="button" id="toggleAutoRefresh" class="btn btn-success">Start Auto Refresh</button>
+                    <button type="button" id="calculatePremium" class="btn btn-primary">Calculate Premium</button>
                     <button type="reset" class="btn btn-outline">Clear</button>
-                </div>
-
-                <div class="live-controls" style="display: none;" id="liveControls">
-                    <div class="control-group">
-                        <label for="refreshInterval">Refresh Interval (seconds):</label>
-                        <select id="refreshInterval">
-                            <option value="5">5 seconds</option>
-                            <option value="10" selected>10 seconds</option>
-                            <option value="15">15 seconds</option>
-                            <option value="30">30 seconds</option>
-                            <option value="60">1 minute</option>
-                        </select>
-                    </div>
-                    <div class="live-status">
-                        <span id="liveStatus" class="status-indicator">●</span>
-                        <span id="lastUpdated">Last updated: Never</span>
-                    </div>
                 </div>
             </div>
         </div>
 
         <div id="resultsSection" class="results-section" style="display: none;">
-            <h2>Premium Calculation Results</h2>
-            <div class="results-grid">
-                <div class="result-card">
-                    <h3>Total Premium Earned</h3>
-                    <div class="result-value" id="totalPremium">₹0.00</div>
-                </div>
-
-                <div class="result-card">
-                    <h3>Total Shares</h3>
-                    <div class="result-value" id="totalShares">0</div>
-                </div>
-
-                <div class="result-card">
-                    <h3>Days to Expiry</h3>
-                    <div class="result-value" id="daysToExpiry">0</div>
-                </div>
-
-                <div class="result-card">
-                    <h3>Daily Premium</h3>
-                    <div class="result-value" id="dailyPremium">₹0.00</div>
-                </div>
-
-                <div class="result-card">
-                    <h3>Margin Required</h3>
-                    <div class="result-value" id="marginRequired">₹0.00</div>
-                </div>
-
-                <div class="result-card">
-                    <h3>Return on Margin</h3>
-                    <div class="result-value" id="returnOnMargin">0.00%</div>
+            <h2>Premium Earned</h2>
+            <div class="premium-result">
+                <div class="premium-card">
+                    <div class="premium-label">Total Premium You Will Earn</div>
+                    <div class="premium-value" id="totalPremium">₹0.00</div>
+                    <div class="premium-subtitle" id="premiumDetails"></div>
                 </div>
             </div>
-
-            <div class="additional-info">
-                <h3>Strategy Details</h3>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <strong>Max Profit:</strong> <span id="maxProfit">₹0.00</span>
-                    </div>
-                    <div class="info-item">
-                        <strong>Max Loss:</strong> <span id="maxLoss">Unlimited</span>
-                    </div>
-                    <div class="info-item">
-                        <strong>Breakeven Point:</strong> <span id="breakeven">₹0.00</span>
-                    </div>
-                    <div class="info-item">
-                        <strong>Risk Level:</strong> <span id="riskLevel">High</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="live-data-section" style="display: none;" id="liveDataSection">
-            <h2>Live Options Data</h2>
-            <div id="optionsChain"></div>
         </div>
     </div>
 
     <script src="kite-api.js"></script>
-    <script src="script.js"></script>
+    <script src="script-clean.js"></script>
 </body>
 </html>

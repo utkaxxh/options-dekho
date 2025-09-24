@@ -1,28 +1,150 @@
 // Kite API Integration for Options Premium Calculator
 
-// Direct access to MCP Kite functions when available, fallback to simulation
+// MCP Kite functions detection and fallback simulation
 console.log('Kite API Integration loaded');
 
-// Create wrapper functions that will use MCP when available, or simulate when not
+// Check if we're in VS Code environment with MCP extension
+const isMCPAvailable = () => {
+    return typeof window.vscode !== 'undefined' || 
+           (typeof window.parent !== 'undefined' && window.parent !== window);
+};
+
+// Enhanced wrapper functions with realistic simulation
 window.mcp_kite_get_profile = async function() {
-    console.log('Attempting to get profile...');
-    throw new Error('MCP functions only work within VS Code environment with MCP extension');
+    if (isMCPAvailable()) {
+        console.log('MCP environment detected, attempting real API call...');
+        // In VS Code with MCP, this would work
+        throw new Error('MCP Kite extension authentication required');
+    } else {
+        console.log('Browser environment detected, using demo profile...');
+        // Simulate a logged-in user for demo
+        return {
+            user_id: "DEMO123",
+            user_name: "Demo User",
+            email: "demo@example.com",
+            exchanges: ["NSE", "BSE", "NFO"],
+            products: ["CNC", "NRML", "MIS"],
+            order_types: ["MARKET", "LIMIT", "SL", "SL-M"]
+        };
+    }
 };
 
 window.mcp_kite_search_instruments = async function(params) {
-    console.log('Attempting to search instruments:', params);
-    throw new Error('MCP functions only work within VS Code environment with MCP extension');
+    if (isMCPAvailable()) {
+        console.log('MCP environment detected, attempting real search...');
+        throw new Error('MCP Kite extension required for live data');
+    } else {
+        console.log('Browser environment detected, using simulated search...');
+        // Return realistic simulated search results
+        return await simulateInstrumentSearch(params);
+    }
 };
 
 window.mcp_kite_get_quotes = async function(params) {
-    console.log('Attempting to get quotes:', params);
-    throw new Error('MCP functions only work within VS Code environment with MCP extension');
+    if (isMCPAvailable()) {
+        console.log('MCP environment detected, attempting real quotes...');
+        throw new Error('MCP Kite extension required for live quotes');
+    } else {
+        console.log('Browser environment detected, using simulated quotes...');
+        return await simulateQuotes(params);
+    }
 };
 
 window.mcp_kite_get_ltp = async function(params) {
-    console.log('Attempting to get LTP:', params);
-    throw new Error('MCP functions only work within VS Code environment with MCP extension');
+    if (isMCPAvailable()) {
+        console.log('MCP environment detected, attempting real LTP...');
+        throw new Error('MCP Kite extension required for live LTP');
+    } else {
+        console.log('Browser environment detected, using simulated LTP...');
+        return await simulateLTP(params);
+    }
 };
+
+// Simulation functions for browser environment
+async function simulateInstrumentSearch(params) {
+    const query = params.query.toUpperCase();
+    console.log('Simulating search for:', query);
+    
+    const commonStocks = {
+        'NYKAA': {
+            instrument_token: 1675521,
+            exchange: 'NSE',
+            tradingsymbol: 'NYKAA',
+            name: 'FSN E COMMERCE VENTURES',
+            last_price: 237.71,
+            lot_size: 3125,
+            instrument_type: 'EQ'
+        },
+        'TCS': {
+            instrument_token: 2953217,
+            exchange: 'NSE', 
+            tradingsymbol: 'TCS',
+            name: 'TATA CONSULTANCY SERVICES',
+            last_price: 3062.40,
+            lot_size: 150,
+            instrument_type: 'EQ'
+        },
+        'RELIANCE': {
+            instrument_token: 738561,
+            exchange: 'NSE',
+            tradingsymbol: 'RELIANCE', 
+            name: 'RELIANCE INDUSTRIES',
+            last_price: 2847.50,
+            lot_size: 250,
+            instrument_type: 'EQ'
+        }
+    };
+    
+    const result = commonStocks[query];
+    return result ? [result] : [];
+}
+
+async function simulateLTP(params) {
+    const results = {};
+    
+    params.instruments.forEach(instrument => {
+        const symbol = instrument.split(':')[1];
+        const prices = {
+            'NYKAA': 237.71 + (Math.random() - 0.5) * 2, // ±1 variation
+            'TCS': 3062.40 + (Math.random() - 0.5) * 20, // ±10 variation  
+            'RELIANCE': 2847.50 + (Math.random() - 0.5) * 15 // ±7.5 variation
+        };
+        
+        results[instrument] = {
+            instrument_token: Math.floor(Math.random() * 10000000),
+            last_price: prices[symbol] || 100 + Math.random() * 500
+        };
+    });
+    
+    return results;
+}
+
+async function simulateQuotes(params) {
+    const results = {};
+    
+    params.instruments.forEach(instrument => {
+        const lastPrice = 50 + Math.random() * 200;
+        results[instrument] = {
+            instrument_token: Math.floor(Math.random() * 10000000),
+            last_price: lastPrice,
+            volume: Math.floor(Math.random() * 100000),
+            oi: Math.floor(Math.random() * 500000),
+            net_change: (Math.random() - 0.5) * 10,
+            ohlc: {
+                open: lastPrice * (0.98 + Math.random() * 0.04),
+                high: lastPrice * (1.01 + Math.random() * 0.02), 
+                low: lastPrice * (0.97 + Math.random() * 0.02),
+                close: lastPrice * (0.99 + Math.random() * 0.02)
+            },
+            depth: {
+                buy: [{price: lastPrice - 0.5, quantity: 1000, orders: 5}],
+                sell: [{price: lastPrice + 0.5, quantity: 1000, orders: 5}]
+            }
+        };
+    });
+    
+    return results;
+}
 
 class KiteAPIIntegration {
     constructor() {
