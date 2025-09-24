@@ -17,6 +17,86 @@ class AuthManager {
         
         // Update UI based on auth status
         this.updateUI();
+
+        // Check Supabase session if available
+        this.checkSupabaseAuth();
+    }
+
+    async checkSupabaseAuth() {
+        try {
+            const supabaseSession = localStorage.getItem('supabaseSession');
+            if (supabaseSession) {
+                const session = JSON.parse(supabaseSession);
+                if (session && session.user) {
+                    // User has valid Supabase session
+                    if (!this.authToken) {
+                        // Set user info from Supabase session
+                        this.userInfo = {
+                            name: session.user.user_metadata?.full_name || session.user.email,
+                            email: session.user.email,
+                            zerodha_connected: false // We'll check this separately
+                        };
+                        this.authToken = session.access_token;
+                        
+                        // Check if user has Zerodha connected
+                        await this.checkZerodhaStatus();
+                        
+                        // Update UI
+                        this.checkAuthStatus();
+                        this.updateUI();
+                    }
+                }
+            }
+
+            // Check if returning from Zerodha authentication
+            this.handleZerodhaReturn();
+        } catch (error) {
+            console.warn('Supabase auth check failed:', error);
+        }
+    }
+
+    handleZerodhaReturn() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const zerodhaReturn = localStorage.getItem('zerodhaReturn');
+        
+        if (zerodhaReturn === 'true' || urlParams.get('zerodha') === 'connected') {
+            localStorage.removeItem('zerodhaReturn');
+            
+            // Clear URL parameters
+            if (urlParams.get('zerodha')) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            // Refresh Zerodha status
+            setTimeout(async () => {
+                await this.checkZerodhaStatus();
+                this.updateUI();
+                
+                if (this.userInfo.zerodha_connected) {
+                    this.showSuccess('✅ Zerodha connected successfully! You can now use real-time data.');
+                }
+            }, 1000);
+        }
+    }
+
+    async checkZerodhaStatus() {
+        try {
+            // Check if user has Zerodha connected via backend
+            const response = await fetch(`${this.baseURL}/api/user/profile`, {
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success && result.data.zerodha_connected) {
+                    this.userInfo.zerodha_connected = true;
+                }
+            }
+        } catch (error) {
+            console.warn('Could not check Zerodha status:', error);
+        }
     }
 
     setupEventListeners() {
@@ -234,6 +314,11 @@ class AuthManager {
         }
 
         try {
+            // Update button to show loading
+            const zerodhaBtn = document.getElementById('zerodhaBtn');
+            zerodhaBtn.textContent = '🔄 Connecting...';
+            zerodhaBtn.disabled = true;
+
             // Get Zerodha auth URL
             const response = await fetch(`${this.baseURL}/api/zerodha/auth-url`, {
                 headers: {
@@ -247,8 +332,13 @@ class AuthManager {
                 throw new Error(result.error || 'Failed to get authentication URL');
             }
 
-            // Redirect to Zerodha
+            // Show info message
             this.showInfo('Redirecting to Zerodha for authentication...');
+            
+            // Store return URL
+            localStorage.setItem('zerodhaReturn', 'true');
+            
+            // Redirect to Zerodha
             setTimeout(() => {
                 window.location.href = result.data.authUrl;
             }, 1500);
@@ -256,6 +346,56 @@ class AuthManager {
         } catch (error) {
             console.error('Zerodha connection failed:', error);
             this.showError(error.message || 'Failed to connect to Zerodha');
+            
+            // Reset button
+            const zerodhaBtn = document.getElementById('zerodhaBtn');
+            zerodhaBtn.textContent = 'Connect Zerodha';
+            zerodhaBtn.disabled = false;
+        }
+    }
+
+    async handleZerodhaDisconnect() {
+        if (!this.authToken) {
+            this.showError('Please log in first');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to disconnect your Zerodha account?')) {
+            return;
+        }
+
+        try {
+            const zerodhaBtn = document.getElementById('zerodhaBtn');
+            zerodhaBtn.textContent = '🔄 Disconnecting...';
+            zerodhaBtn.disabled = true;
+
+            const response = await fetch(`${this.baseURL}/api/zerodha/disconnect`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`
+                }
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to disconnect');
+            }
+
+            // Update user info
+            this.userInfo.zerodha_connected = false;
+            localStorage.setItem('userInfo', JSON.stringify(this.userInfo));
+
+            // Update UI
+            this.updateUI();
+            this.showSuccess('Zerodha account disconnected successfully');
+
+        } catch (error) {
+            console.error('Zerodha disconnect failed:', error);
+            this.showError(error.message || 'Failed to disconnect Zerodha');
+            
+            // Reset button
+            this.updateUI();
         }
     }
 
@@ -291,20 +431,34 @@ class AuthManager {
         }
     }
 
-    handleLogout() {
+    async handleLogout() {
         if (confirm('Are you sure you want to logout?')) {
-            // Clear local storage
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('userInfo');
-            
-            // Reset state
-            this.authToken = null;
-            this.userInfo = null;
-            
-            // Update UI
-            this.showLoginPrompt();
-            
-            this.showSuccess('Logged out successfully');
+            try {
+                // Clear local storage
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('userInfo');
+                localStorage.removeItem('supabaseSession');
+                localStorage.removeItem('zerodhaReturn');
+                
+                // Reset state
+                this.authToken = null;
+                this.userInfo = null;
+                
+                // Sign out from Supabase if available
+                if (typeof window.supabase !== 'undefined') {
+                    await window.supabase.auth.signOut();
+                }
+                
+                // Update UI
+                this.showLoginPrompt();
+                
+                this.showSuccess('Logged out successfully');
+            } catch (error) {
+                console.warn('Logout error:', error);
+                // Still proceed with logout even if Supabase signout fails
+                this.showLoginPrompt();
+                this.showSuccess('Logged out successfully');
+            }
         }
     }
 
