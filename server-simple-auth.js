@@ -1,476 +1,396 @@
-const express = require('express');
-const cors = require('cors');
-const crypto = require('crypto');
-const fetch = require('node-fetch');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+const express = require(''express'');
+const cors = require(''cors'');
+const crypto = require(''crypto'');
+const fetch = require(''node-fetch'');
+const { createClient } = require(''@supabase/supabase-js'');
+require(''dotenv'').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Zerodha API configuration
 const KITE_API_KEY = process.env.KITE_API_KEY;
 const KITE_API_SECRET = process.env.KITE_API_SECRET;
-const APP_URL = process.env.APP_URL || 'http://localhost:5000';
+const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
 );
 
-// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(''public''));
 
-// JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+const mapUserProfile = (record) => ({
+  id: record.id,
+  email: record.email,
+  name: record.name,
+  zerodha_connected: !!record.zerodha_connected,
+  zerodha_user_id: record.zerodha_user_id,
+  created_at: record.created_at,
+  updated_at: record.updated_at
+});
 
-// Authentication middleware
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+const getDisplayName = (authUser) => {
+  const metadata = authUser.user_metadata || {};
+  return (
+    (metadata.full_name && metadata.full_name.trim()) ||
+    (metadata.name && metadata.name.trim()) ||
+    (authUser.email ? authUser.email.split(''@'')[0] : null) ||
+    ''User''
+  );
+};
 
-  if (!token) {
-    return res.status(401).json({ success: false, error: 'Access token required' });
+const ensureUserRecord = async (authUser) => {
+  const email = (authUser.email || '''').toLowerCase();
+
+  if (!email) {
+    throw new Error(''Authenticated user is missing an email address'');
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ success: false, error: 'Invalid or expired token' });
+  const { data: existing, error: selectError } = await supabase
+    .from(''users'')
+    .select(''*'')
+    .eq(''email'', email)
+    .maybeSingle();
+
+  if (selectError) {
+    throw selectError;
+  }
+
+  const now = new Date().toISOString();
+
+  if (!existing) {
+    const insertPayload = {
+      email,
+      name: getDisplayName(authUser),
+      password_hash: ''supabase-managed'',
+      email_confirmed: !!authUser.email_confirmed_at,
+      created_at: now,
+      updated_at: now
+    };
+
+    const { data: created, error: insertError } = await supabase
+      .from(''users'')
+      .insert([insertPayload])
+      .select()
+      .single();
+
+    if (insertError) {
+      throw insertError;
     }
-    req.user = user;
+
+    return created;
+  }
+
+  const updates = {};
+  const desiredName = getDisplayName(authUser);
+
+  if (desiredName && existing.name !== desiredName) {
+    updates.name = desiredName;
+  }
+
+  if (!!authUser.email_confirmed_at && !existing.email_confirmed) {
+    updates.email_confirmed = true;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return existing;
+  }
+
+  updates.updated_at = now;
+
+  const { data: updated, error: updateError } = await supabase
+    .from(''users'')
+    .update(updates)
+    .eq(''id'', existing.id)
+    .select()
+    .single();
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  return updated;
+};
+
+const authenticateRequest = async (req, res, next) => {
+  try {
+    const authorization = req.headers.authorization || '';
+
+    if (!authorization.startsWith(''Bearer '')) {
+      return res.status(401).json({ success: false, error: ''Access token required'' });
+    }
+
+    const token = authorization.slice(''Bearer ''.Length).trim();
+
+    if (!token) {
+      return res.status(401).json({ success: false, error: ''Access token required'' });
+    }
+
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data?.user) {
+      return res.status(401).json({ success: false, error: ''Invalid or expired token'' });
+    }
+
+    const userRecord = await ensureUserRecord(data.user);
+
+    req.currentUser = {
+      token,
+      auth: data.user,
+      profile: userRecord
+    };
+
     next();
+  } catch (error) {
+    console.error(''Authentication error:'', error);
+    res.status(401).json({ success: false, error: ''Authentication failed'' });
+  }
+};
+
+const sendProfileResponse = (res, profile) => {
+  res.json({
+    success: true,
+    data: mapUserProfile(profile)
   });
 };
 
-// Auth Routes
+const updateSupabaseMetadataName = async (authUser, nextName) => {
+  if (!nextName) {
+    return;
+  }
 
-// Register
-app.post('/api/auth/register', async (req, res) => {
+  const metadata = authUser.user_metadata || {};
+  if (metadata.full_name === nextName) {
+    return;
+  }
+
   try {
-    const { email, password, name } = req.body;
-
-    if (!email || !password || !name) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email, password, and name are required' 
-      });
-    }
-
-    // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email.toLowerCase())
-      .single();
-
-    if (existingUser) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'User already exists with this email' 
-      });
-    }
-
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // Create user in database
-    const { data: user, error } = await supabase
-      .from('users')
-      .insert([{
-        email: email.toLowerCase(),
-        password_hash: hashedPassword,
-        name: name,
-        created_at: new Date().toISOString(),
-        email_confirmed: true // Skip email confirmation for simplicity
-      }])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Database error:', error);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to create user account' 
-      });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        email: user.email, 
-        name: user.name 
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Return user info and token
-    res.status(201).json({
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          email_confirmed: user.email_confirmed
-        },
-        token: token
+    await supabase.auth.admin.updateUserById(authUser.id, {
+      user_metadata: {
+        ...metadata,
+        full_name: nextName
       }
     });
-
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error during registration'
-    });
+    console.warn(''Supabase metadata update failed:'', error.message);
   }
+};
+
+app.get('/api/users/profile', authenticateRequest, (req, res) => {
+  sendProfileResponse(res, req.currentUser.profile);
 });
 
-// Login
-app.post('/api/auth/login', async (req, res) => {
+app.get('/api/auth/profile', authenticateRequest, (req, res) => {
+  sendProfileResponse(res, req.currentUser.profile);
+});
+
+app.post('/api/users/sync', authenticateRequest, (req, res) => {
+  sendProfileResponse(res, req.currentUser.profile);
+});
+
+app.patch('/api/users/profile', authenticateRequest, async (req, res) => {
   try {
-    console.log('Login request received:', { email: req.body.email, body: !!req.body });
-    const { email, password } = req.body;
+    const allowedFields = [
+      ''name'',
+      ''zerodha_connected'',
+      ''zerodha_access_token'',
+      ''zerodha_public_token'',
+      ''zerodha_user_id''
+    ];
 
-    if (!email || !password) {
-      console.log('Login failed: Missing email or password');
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Email and password are required' 
-      });
-    }
-
-    console.log('Looking up user in database:', email);
-    // Get user from database
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase())
-      .single();
-
-    if (error || !user) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid email or password' 
-      });
-    }
-
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
-    if (!isValidPassword) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid email or password' 
-      });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        id: user.id, 
-        email: user.email, 
-        name: user.name 
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Return user info and token
-    res.json({
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          email_confirmed: user.email_confirmed
-        },
-        token: token
+    const updates = {};
+    for (const field of allowedFields) {
+      if (field in req.body) {
+        updates[field] = req.body[field];
       }
-    });
-
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error during login'
-    });
-  }
-});
-
-// Get user profile
-app.get('/api/auth/profile', authenticateToken, async (req, res) => {
-  try {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('id, email, name, email_confirmed, created_at, zerodha_connected, zerodha_user_id')
-      .eq('id', req.user.id)
-      .single();
-
-    if (error || !user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
     }
 
-    res.json({
-      success: true,
-      data: user
-    });
-
-  } catch (error) {
-    console.error('Profile fetch error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch user profile'
-    });
-  }
-});
-
-// Create alias for users/profile endpoint
-app.get('/api/users/profile', authenticateToken, async (req, res) => {
-  try {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('id, email, name, email_confirmed, created_at, zerodha_connected, zerodha_user_id')
-      .eq('id', req.user.id)
-      .single();
-
-    if (error || !user) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
-      });
-    }
-
-    res.json({
-      success: true,
-      data: user
-    });
-
-  } catch (error) {
-    console.error('Profile fetch error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch user profile'
-    });
-  }
-});
-
-// Update user profile
-app.put('/api/auth/profile', authenticateToken, async (req, res) => {
-  try {
-    const { name } = req.body;
-    
-    if (!name) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Name is required' 
-      });
-    }
-
-    const { data: user, error } = await supabase
-      .from('users')
-      .update({ 
-        name: name,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', req.user.id)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error('Failed to update profile');
-    }
-
-    res.json({
-      success: true,
-      data: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        email_confirmed: user.email_confirmed
-      }
-    });
-
-  } catch (error) {
-    console.error('Profile update error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to update profile'
-    });
-  }
-});
-
-// Add PATCH endpoint for users/profile (used by Zerodha disconnect)
-app.patch('/api/users/profile', authenticateToken, async (req, res) => {
-  try {
-    const updates = req.body;
-
-    // Allow only specific fields to be updated
-    const allowedFields = ['name', 'zerodha_connected', 'zerodha_access_token', 'zerodha_public_token', 'zerodha_user_id'];
-    const filteredUpdates = {};
-
-    Object.keys(updates).forEach(key => {
-      if (allowedFields.includes(key)) {
-        filteredUpdates[key] = updates[key];
-      }
-    });
-
-    if (Object.keys(filteredUpdates).length === 0) {
+    if (Object.keys(updates).length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'No valid fields to update'
+        error: ''No valid fields to update''
       });
     }
 
-    filteredUpdates.updated_at = new Date().toISOString();
+    updates.updated_at = new Date().toISOString();
 
-    const { data, error } = await supabase
-      .from('users')
-      .update(filteredUpdates)
-      .eq('id', req.user.id)
-      .select('id, name, email, zerodha_connected, zerodha_user_id, created_at')
+    const { data: updatedProfile, error } = await supabase
+      .from(''users'')
+      .update(updates)
+      .eq(''id'', req.currentUser.profile.id)
+      .select()
       .single();
 
     if (error) {
       throw error;
     }
 
-    res.json({
-      success: true,
-      data: data
-    });
+    req.currentUser.profile = updatedProfile;
 
+    if (updates.name) {
+      await updateSupabaseMetadataName(req.currentUser.auth, updates.name);
+    }
+
+    sendProfileResponse(res, updatedProfile);
   } catch (error) {
-    console.error('Profile update error:', error);
+    console.error(''Profile update error:'', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update profile'
+      error: error.message || ''Failed to update profile''
     });
   }
 });
 
-// Zerodha Integration Routes
+app.put('/api/auth/profile', authenticateRequest, async (req, res) => {
+  try {
+    const { name } = req.body || {};
 
-// Initiate Zerodha authentication
-app.get('/api/zerodha/auth-url', authenticateToken, (req, res) => {
+    if (!name || typeof name !== ''string'' || !name.trim()) {
+      return res.status(400).json({ success: false, error: ''Name is required'' });
+    }
+
+    const updates = {
+      name: name.trim(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updatedProfile, error } = await supabase
+      .from(''users'')
+      .update(updates)
+      .eq(''id'', req.currentUser.profile.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    req.currentUser.profile = updatedProfile;
+    await updateSupabaseMetadataName(req.currentUser.auth, updates.name);
+
+    sendProfileResponse(res, updatedProfile);
+  } catch (error) {
+    console.error(''Profile update error:'', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || ''Failed to update profile''
+    });
+  }
+});
+
+app.get('/api/zerodha/auth-url', authenticateRequest, (req, res) => {
   try {
     if (!KITE_API_KEY) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Kite API key not configured' 
+      return res.status(500).json({
+        success: false,
+        error: ''Kite API key not configured''
       });
     }
 
-    // Generate state parameter for security (CSRF protection)
-    const state = crypto.randomBytes(32).toString('hex');
-    
+    const state = crypto.randomBytes(32).toString(''hex'');
+
     const authUrl = `https://kite.zerodha.com/connect/login?api_key=${KITE_API_KEY}&v=3&state=${state}`;
     const redirectUrl = `${APP_URL}/api/zerodha/callback`;
 
     res.json({
       success: true,
       data: {
-        authUrl: authUrl,
-        redirectUrl: redirectUrl,
-        state: state
+        authUrl,
+        redirectUrl,
+        state
       }
     });
   } catch (error) {
-    console.error('Zerodha auth URL error:', error);
+    console.error(''Zerodha auth URL error:'', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to generate authentication URL'
+      error: ''Failed to generate authentication URL''
     });
   }
 });
 
-// Handle Zerodha OAuth callback
 app.get('/api/zerodha/callback', async (req, res) => {
   try {
     const { request_token, action, status, state, error } = req.query;
-    
-    // Redirect to callback page with parameters
+
     const params = new URLSearchParams({
-      request_token: request_token || '',
-      action: action || '',
-      status: status || 'error',
-      state: state || '',
-      error: error || ''
+      request_token: request_token || '''',
+      action: action || '''',
+      status: status || ''error'',
+      state: state || '''',
+      error: error || ''''
     });
 
     res.redirect(`/zerodha-auth-callback.html?${params.toString()}`);
-
   } catch (error) {
-    console.error('Zerodha callback error:', error);
+    console.error(''Zerodha callback error:'', error);
     res.redirect(`/zerodha-auth-callback.html?status=error&error=${encodeURIComponent(error.message)}`);
   }
 });
 
-// Exchange request token for access token
-app.post('/api/zerodha/access-token', authenticateToken, async (req, res) => {
+app.post('/api/zerodha/access-token', authenticateRequest, async (req, res) => {
   try {
     const { request_token } = req.body;
-    
+
     if (!request_token) {
       return res.status(400).json({
         success: false,
-        error: 'Request token is required'
+        error: ''Request token is required''
       });
     }
 
-    // Generate checksum
     const checksum = crypto
-      .createHash('sha256')
+      .createHash(''sha256'')
       .update(KITE_API_KEY + request_token + KITE_API_SECRET)
-      .digest('hex');
+      .digest(''hex'');
 
-    // Make request to Zerodha for access token
-    const response = await fetch('https://api.kite.trade/session/token', {
-      method: 'POST',
+    const response = await fetch(''https://api.kite.trade/session/token'', {
+      method: ''POST'',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-Kite-Version': '3'
+        'Content-Type': ''application/x-www-form-urlencoded'',
+        'X-Kite-Version': ''3''
       },
       body: new URLSearchParams({
         api_key: KITE_API_KEY,
-        request_token: request_token,
-        checksum: checksum
+        request_token,
+        checksum
       })
     });
 
     const result = await response.json();
 
     if (!response.ok) {
-      throw new Error(result.message || 'Failed to get access token');
+      throw new Error(result.message || ''Failed to get access token'');
     }
 
-    // Store access token in database
-    const userId = req.user.id;
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({
-        zerodha_access_token: result.data.access_token,
-        zerodha_public_token: result.data.public_token,
-        zerodha_user_id: result.data.user_id,
-        zerodha_connected: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
+    const updates = {
+      zerodha_access_token: result.data.access_token,
+      zerodha_public_token: result.data.public_token,
+      zerodha_user_id: result.data.user_id,
+      zerodha_connected: true,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updatedProfile, error: updateError } = await supabase
+      .from(''users'')
+      .update(updates)
+      .eq(''id'', req.currentUser.profile.id)
+      .select()
+      .single();
 
     if (updateError) {
-      throw new Error('Failed to save Zerodha credentials');
+      throw new Error(''Failed to save Zerodha credentials'');
     }
+
+    req.currentUser.profile = updatedProfile;
 
     res.json({
       success: true,
@@ -481,64 +401,53 @@ app.post('/api/zerodha/access-token', authenticateToken, async (req, res) => {
         public_token: result.data.public_token
       }
     });
-
   } catch (error) {
-    console.error('Access token exchange error:', error);
+    console.error(''Access token exchange error:'', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to exchange access token'
+      error: error.message || ''Failed to exchange access token''
     });
   }
 });
 
-// Get instruments list for symbol search
-app.get('/api/zerodha/instruments', authenticateToken, async (req, res) => {
+app.get('/api/zerodha/instruments', authenticateRequest, async (req, res) => {
   try {
-    const userId = req.user.id;
     const { symbol } = req.query;
-    
-    // Get user's Zerodha credentials from database
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('zerodha_access_token, zerodha_connected')
-      .eq('id', userId)
-      .single();
+    const userProfile = req.currentUser.profile;
 
-    if (error || !user.zerodha_connected) {
+    if (!userProfile.zerodha_connected || !userProfile.zerodha_access_token) {
       return res.status(400).json({
         success: false,
-        error: 'Zerodha account not connected'
+        error: ''Zerodha account not connected''
       });
     }
 
-    // Get instruments from Zerodha
-    const response = await fetch(`https://api.kite.trade/instruments`, {
+    const response = await fetch(''https://api.kite.trade/instruments'', {
       headers: {
-        'Authorization': `token ${KITE_API_KEY}:${user.zerodha_access_token}`,
-        'X-Kite-Version': '3'
+        Authorization: `token ${KITE_API_KEY}:${userProfile.zerodha_access_token}`,
+        'X-Kite-Version': ''3''
       }
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch instruments');
+      throw new Error(''Failed to fetch instruments'');
     }
 
     const csvData = await response.text();
-    // Parse CSV and filter by symbol if provided
-    const lines = csvData.split('\n');
-    const headers = lines[0].split(',');
-    
+    const lines = csvData.split(''\n'');
+    const headers = lines[0].split('','');
+
     const instruments = [];
-    for (let i = 1; i < lines.length && i < 1000; i++) { // Limit for performance
-      const row = lines[i].split(',');
+
+    for (let i = 1; i < lines.length && i < 1000; i++) {
+      const row = lines[i].split('','');
       if (row.length >= headers.length) {
         const instrument = {};
         headers.forEach((header, index) => {
           instrument[header.trim()] = row[index]?.trim();
         });
-        
-        // Filter for options and specific symbol if provided
-        if (instrument.segment === 'NFO-OPT' || instrument.segment === 'BFO-OPT') {
+
+        if (instrument.segment === ''NFO-OPT'' || instrument.segment === ''BFO-OPT'') {
           if (!symbol || instrument.name?.includes(symbol.toUpperCase())) {
             instruments.push(instrument);
           }
@@ -548,77 +457,67 @@ app.get('/api/zerodha/instruments', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      data: instruments.slice(0, 100) // Limit results
+      data: instruments.slice(0, 100)
     });
-
   } catch (error) {
-    console.error('Instruments fetch error:', error);
+    console.error(''Instruments fetch error:'', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to fetch instruments'
+      error: error.message || ''Failed to fetch instruments''
     });
   }
 });
 
-// Get option chain for a specific stock
-app.post('/api/zerodha/option-chain', authenticateToken, async (req, res) => {
+app.post('/api/zerodha/option-chain', authenticateRequest, async (req, res) => {
   try {
-    const userId = req.user.id;
     const { symbol, expiry } = req.body;
+    const userProfile = req.currentUser.profile;
 
     if (!symbol || !expiry) {
       return res.status(400).json({
         success: false,
-        error: 'Symbol and expiry are required'
+        error: ''Symbol and expiry are required''
       });
     }
 
-    // Get user's Zerodha credentials
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('zerodha_access_token, zerodha_connected')
-      .eq('id', userId)
-      .single();
-
-    if (error || !user.zerodha_connected) {
+    if (!userProfile.zerodha_connected || !userProfile.zerodha_access_token) {
       return res.status(400).json({
         success: false,
-        error: 'Zerodha account not connected'
+        error: ''Zerodha account not connected''
       });
     }
 
-    // Get instruments first to find option tokens
-    const instrumentsResponse = await fetch(`https://api.kite.trade/instruments/NFO`, {
+    const instrumentsResponse = await fetch(''https://api.kite.trade/instruments/NFO'', {
       headers: {
-        'Authorization': `token ${KITE_API_KEY}:${user.zerodha_access_token}`,
-        'X-Kite-Version': '3'
+        Authorization: `token ${KITE_API_KEY}:${userProfile.zerodha_access_token}`,
+        'X-Kite-Version': ''3''
       }
     });
 
     if (!instrumentsResponse.ok) {
-      throw new Error('Failed to fetch instruments');
+      throw new Error(''Failed to fetch instruments'');
     }
 
     const csvData = await instrumentsResponse.text();
-    const lines = csvData.split('\n');
-    const headers = lines[0].split(',');
-    
-    // Find option instruments for the symbol and expiry
+    const lines = csvData.split(''\n'');
+    const headers = lines[0].split('','');
+
     const optionInstruments = [];
-    const targetDate = new Date(expiry).toISOString().split('T')[0];
-    
+    const targetDate = new Date(expiry).toISOString().split(''T'')[0];
+
     for (let i = 1; i < lines.length; i++) {
-      const row = lines[i].split(',');
+      const row = lines[i].split('','');
       if (row.length >= headers.length) {
         const instrument = {};
         headers.forEach((header, index) => {
           instrument[header.trim()] = row[index]?.trim();
         });
-        
-        // Check if it matches our criteria
-        if (instrument.name === symbol.toUpperCase() && 
-            instrument.instrument_type === 'PE' &&
-            instrument.expiry === targetDate) {
+
+        if (
+          instrument.name === symbol.toUpperCase() &&
+          instrument.instrument_type === ''PE'' &&
+          instrument.expiry === targetDate
+        ) {
           optionInstruments.push({
             instrument_token: instrument.instrument_token,
             trading_symbol: instrument.tradingsymbol,
@@ -633,20 +532,19 @@ app.post('/api/zerodha/option-chain', authenticateToken, async (req, res) => {
       return res.json({
         success: true,
         data: [],
-        message: 'No put options found for the specified symbol and expiry'
+        message: ''No put options found for the specified symbol and expiry''
       });
     }
 
-    // Get LTP for these instruments (limit to 50 to avoid API limits)
     const limitedInstruments = optionInstruments.slice(0, 50);
-    const instrumentTokens = limitedInstruments.map(inst => inst.instrument_token);
-    
-    const ltpResponse = await fetch(`https://api.kite.trade/quote/ltp`, {
-      method: 'POST',
+    const instrumentTokens = limitedInstruments.map((inst) => inst.instrument_token);
+
+    const ltpResponse = await fetch(''https://api.kite.trade/quote/ltp'', {
+      method: ''POST'',
       headers: {
-        'Authorization': `token ${KITE_API_KEY}:${user.zerodha_access_token}`,
-        'X-Kite-Version': '3',
-        'Content-Type': 'application/json'
+        Authorization: `token ${KITE_API_KEY}:${userProfile.zerodha_access_token}`,
+        'X-Kite-Version': ''3'',
+        'Content-Type': ''application/json''
       },
       body: JSON.stringify({
         i: instrumentTokens
@@ -656,11 +554,10 @@ app.post('/api/zerodha/option-chain', authenticateToken, async (req, res) => {
     const ltpData = await ltpResponse.json();
 
     if (!ltpResponse.ok) {
-      throw new Error(ltpData.message || 'Failed to get LTP data');
+      throw new Error(ltpData.message || ''Failed to get LTP data'');
     }
 
-    // Combine instrument data with LTP
-    const optionChain = limitedInstruments.map(inst => ({
+    const optionChain = limitedInstruments.map((inst) => ({
       ...inst,
       ltp: ltpData.data[inst.instrument_token]?.last_price || 0
     }));
@@ -669,17 +566,51 @@ app.post('/api/zerodha/option-chain', authenticateToken, async (req, res) => {
       success: true,
       data: optionChain
     });
-
   } catch (error) {
-    console.error('Option chain error:', error);
+    console.error(''Option chain error:'', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to fetch option chain'
+      error: error.message || ''Failed to fetch option chain''
     });
   }
 });
 
-// Serve frontend routes
+app.patch('/api/users/zerodha/disconnect', authenticateRequest, async (req, res) => {
+  try {
+    const updates = {
+      zerodha_connected: false,
+      zerodha_access_token: null,
+      zerodha_public_token: null,
+      zerodha_user_id: null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updatedProfile, error } = await supabase
+      .from(''users'')
+      .update(updates)
+      .eq(''id'', req.currentUser.profile.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    req.currentUser.profile = updatedProfile;
+
+    res.json({
+      success: true,
+      data: mapUserProfile(updatedProfile)
+    });
+  } catch (error) {
+    console.error(''Zerodha disconnection failed:'', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || ''Failed to disconnect from Zerodha''
+    });
+  }
+});
+
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
@@ -693,33 +624,25 @@ app.get('/app', (req, res) => {
 });
 
 app.get('/confirm', (req, res) => {
-  res.sendFile(__dirname + '/public/confirm.html');
+  res.sendFile(__ dirname + '/public/confirm.html');
 });
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    success: true, 
-    message: 'Options Premium Calculator API is running',
+  res.json({
+    success: true,
+    message: 'Options Dekho API is running',
     timestamp: new Date().toISOString()
   });
 });
 
-// Catch-all handler for SPA routing
 app.get('*', (req, res) => {
-  // If it's an API route that doesn't exist, return 404
   if (req.path.startsWith('/api/')) {
-    res.status(404).json({ 
-      success: false, 
-      error: 'API endpoint not found' 
-    });
+    res.status(404).json({ success: false, error: 'API endpoint not found' });
   } else {
-    // For all other routes, serve the main app
     res.sendFile(__dirname + '/public/app.html');
   }
 });
 
-// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
@@ -728,11 +651,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Options Premium Calculator server running on port ${PORT}`);
-  console.log(`📱 Frontend: http://localhost:${PORT}`);
-  console.log(`🔗 API Base: http://localhost:${PORT}/api`);
-  console.log(`🗄️  Supabase URL configured: ${!!process.env.SUPABASE_URL}`);
-  console.log(`🛡️  JWT Secret configured: ${!!process.env.JWT_SECRET}`);
+  console.log(` Options Dekho server running on port ${PORT}`);
+  console.log(` Frontend: http://localhost:${PORT}`);
+  console.log(` API Base: http://localhost:${PORT}/api`);
+  console.log(`  Supabase URL configured: ${!!process.env.SUPABASE_URL}`);
+  console.log(` Service role key configured: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
 });
