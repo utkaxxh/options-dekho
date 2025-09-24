@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Options Premium Calculator</title>
+    <title>Put Options LTP Finder</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -72,9 +72,6 @@
                 <span class="user-email" id="userEmail"></span>
             </div>
             <div class="profile-actions">
-                <button id="zerodhaBtn" class="connect-btn" onclick="handleZerodhaConnection()">
-                    Connect Zerodha
-                </button>
                 <button class="logout-btn" onclick="handleLogout()">Logout</button>
             </div>
         </div>
@@ -82,36 +79,57 @@
         <!-- Login Prompt (shown when not authenticated) -->
         <div id="loginPrompt" class="login-prompt">
             <div class="welcome-content">
-                <h1>🎯 Options Premium Calculator</h1>
-                <p>Calculate premium earned from selling put options with real-time Zerodha data</p>
+                <h1>🎯 Put Options LTP Finder</h1>
+                <p>Find the Last Traded Price (LTP) of put options for premium calculation</p>
                 <div class="features">
                     <div class="feature">
                         <span class="feature-icon">📊</span>
-                        <span class="feature-text">Real-time market data</span>
+                        <span class="feature-text">Real put option LTP lookup</span>
                     </div>
                     <div class="feature">
                         <span class="feature-icon">🔐</span>
-                        <span class="feature-text">Secure Zerodha integration</span>
+                        <span class="feature-text">Secure user authentication</span>
                     </div>
                     <div class="feature">
                         <span class="feature-icon">⚡</span>
-                        <span class="feature-text">Instant premium calculations</span>
+                        <span class="feature-text">Instant LTP results</span>
                     </div>
                 </div>
                 <button class="auth-btn primary" onclick="showAuthModal()">Get Started</button>
-                <p class="demo-text">Start calculating your options premium today</p>
+                <p class="demo-text">Start finding put option prices today</p>
             </div>
         </div>
 
         <!-- Main App (shown when authenticated) -->
         <div id="mainApp" style="display: none;">
             <header>
-                <h1>Options Premium Calculator</h1>
-                <p>Calculate premium earned from selling put options with real-time market data</p>
+                <h1>Put Options LTP Finder</h1>
+                <p>Find the Last Traded Price (LTP) of put options for premium calculation</p>
                 <div class="demo-notice" style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 0.9rem;">
-                    💡 <span id="dataMode">Detecting data source...</span>
+                    💡 <span id="dataMode">Using demo LTP data</span>
                 </div>
             </header>
+
+            <!-- Zerodha Connection Section -->
+            <div class="connection-section">
+                <div class="connection-card">
+                    <div class="connection-status">
+                        <span class="connection-icon" id="connectionIcon">🔗</span>
+                        <div class="connection-info">
+                            <div class="connection-title">Market Data Connection</div>
+                            <div class="connection-subtitle" id="connectionStatus">Connect Zerodha for live market data</div>
+                        </div>
+                    </div>
+                    <div class="connection-actions">
+                        <button type="button" id="connectZerodhaBtn" class="btn btn-outline btn-sm">
+                            Connect Zerodha
+                        </button>
+                        <button type="button" id="disconnectZerodhaBtn" class="btn btn-outline btn-sm" style="display: none;">
+                            Disconnect
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <div class="calculator-section">
                 <div class="form-grid">
@@ -132,17 +150,17 @@
                     </div>
 
                     <div class="form-actions">
-                        <button type="button" id="calculatePremium" class="btn btn-primary">Calculate Premium</button>
+                        <button type="button" id="calculatePremium" class="btn btn-primary">Find Put LTP</button>
                         <button type="reset" class="btn btn-outline">Clear</button>
                     </div>
                 </div>
             </div>
 
             <div id="resultsSection" class="results-section" style="display: none;">
-                <h2>Premium Earned</h2>
+                <h2>Put Option LTP</h2>
                 <div class="premium-result">
                     <div class="premium-card">
-                        <div class="premium-label">Total Premium You Will Earn</div>
+                        <div class="premium-label">Put Option Premium (LTP)</div>
                         <div class="premium-value" id="totalPremium">₹0.00</div>
                         <div class="premium-subtitle" id="premiumDetails"></div>
                     </div>
@@ -151,8 +169,6 @@
         </div>
     </div>
 
-    <script src="auth.js"></script>
-    <script src="kite-api.js"></script>
     <script src="script.js"></script>
     
     <script type="module">

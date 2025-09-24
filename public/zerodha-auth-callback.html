@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zerodha Authentication</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            max-width: 400px;
+        }
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+        .message {
+            opacity: 0.8;
+        }
+        .error {
+            color: #ff6b6b;
+        }
+        .success {
+            color: #51cf66;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <div class="status" id="status">Processing authentication...</div>
+        <div class="message" id="message">Please wait while we complete the setup.</div>
+    </div>
+
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const requestToken = urlParams.get('request_token');
+        const status = urlParams.get('status');
+        const action = urlParams.get('action');
+        const error = urlParams.get('error');
+
+        const statusEl = document.getElementById('status');
+        const messageEl = document.getElementById('message');
+
+        if (status === 'success' && requestToken) {
+            statusEl.textContent = 'Authentication successful!';
+            statusEl.className = 'status success';
+            messageEl.textContent = 'Closing window and completing setup...';
+
+            // Send message to parent window
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'ZERODHA_AUTH_SUCCESS',
+                    request_token: requestToken,
+                    status: status
+                }, window.location.origin);
+            }
+
+            // Close window after a brief delay
+            setTimeout(() => {
+                window.close();
+            }, 2000);
+
+        } else if (status === 'error' || error) {
+            statusEl.textContent = 'Authentication failed';
+            statusEl.className = 'status error';
+            messageEl.textContent = error || 'Authentication was cancelled or failed. Please try again.';
+
+            // Send error message to parent window
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'ZERODHA_AUTH_ERROR',
+                    error: error || 'Authentication failed',
+                    status: status
+                }, window.location.origin);
+            }
+
+            // Close window after delay
+            setTimeout(() => {
+                window.close();
+            }, 5000);
+
+        } else {
+            statusEl.textContent = 'Invalid response';
+            statusEl.className = 'status error';
+            messageEl.textContent = 'Unexpected authentication response. Please try again.';
+
+            // Close window after delay
+            setTimeout(() => {
+                window.close();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

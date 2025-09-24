@@ -131,18 +131,6 @@ class AuthManager {
             // Update user profile
             document.getElementById('userName').textContent = this.userInfo.name;
             document.getElementById('userEmail').textContent = this.userInfo.email;
-            
-            // Update Zerodha button
-            const zerodhaBtn = document.getElementById('zerodhaBtn');
-            if (this.userInfo.zerodha_connected) {
-                zerodhaBtn.textContent = '✅ Zerodha Connected';
-                zerodhaBtn.classList.add('connected');
-                zerodhaBtn.onclick = () => this.handleZerodhaDisconnect();
-            } else {
-                zerodhaBtn.textContent = 'Connect Zerodha';
-                zerodhaBtn.classList.remove('connected');
-                zerodhaBtn.onclick = () => this.handleZerodhaConnection();
-            }
         }
     }
 
@@ -307,130 +295,6 @@ class AuthManager {
         }
     }
 
-    async handleZerodhaConnection() {
-        if (!this.authToken) {
-            this.showError('Please log in first');
-            return;
-        }
-
-        try {
-            // Update button to show loading
-            const zerodhaBtn = document.getElementById('zerodhaBtn');
-            zerodhaBtn.textContent = '🔄 Connecting...';
-            zerodhaBtn.disabled = true;
-
-            // Get Zerodha auth URL
-            const response = await fetch(`${this.baseURL}/api/zerodha/auth-url`, {
-                headers: {
-                    'Authorization': `Bearer ${this.authToken}`
-                }
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to get authentication URL');
-            }
-
-            // Show info message
-            this.showInfo('Redirecting to Zerodha for authentication...');
-            
-            // Store return URL
-            localStorage.setItem('zerodhaReturn', 'true');
-            
-            // Redirect to Zerodha
-            setTimeout(() => {
-                window.location.href = result.data.authUrl;
-            }, 1500);
-
-        } catch (error) {
-            console.error('Zerodha connection failed:', error);
-            this.showError(error.message || 'Failed to connect to Zerodha');
-            
-            // Reset button
-            const zerodhaBtn = document.getElementById('zerodhaBtn');
-            zerodhaBtn.textContent = 'Connect Zerodha';
-            zerodhaBtn.disabled = false;
-        }
-    }
-
-    async handleZerodhaDisconnect() {
-        if (!this.authToken) {
-            this.showError('Please log in first');
-            return;
-        }
-
-        if (!confirm('Are you sure you want to disconnect your Zerodha account?')) {
-            return;
-        }
-
-        try {
-            const zerodhaBtn = document.getElementById('zerodhaBtn');
-            zerodhaBtn.textContent = '🔄 Disconnecting...';
-            zerodhaBtn.disabled = true;
-
-            const response = await fetch(`${this.baseURL}/api/zerodha/disconnect`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.authToken}`
-                }
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to disconnect');
-            }
-
-            // Update user info
-            this.userInfo.zerodha_connected = false;
-            localStorage.setItem('userInfo', JSON.stringify(this.userInfo));
-
-            // Update UI
-            this.updateUI();
-            this.showSuccess('Zerodha account disconnected successfully');
-
-        } catch (error) {
-            console.error('Zerodha disconnect failed:', error);
-            this.showError(error.message || 'Failed to disconnect Zerodha');
-            
-            // Reset button
-            this.updateUI();
-        }
-    }
-
-    async handleZerodhaDisconnect() {
-        if (!confirm('Are you sure you want to disconnect your Zerodha account?')) {
-            return;
-        }
-
-        try {
-            const response = await fetch(`${this.baseURL}/api/zerodha/disconnect`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.authToken}`
-                }
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to disconnect');
-            }
-
-            // Update user info
-            this.userInfo.zerodha_connected = false;
-            localStorage.setItem('userInfo', JSON.stringify(this.userInfo));
-
-            this.showSuccess('Zerodha account disconnected successfully');
-            this.updateUI();
-
-        } catch (error) {
-            console.error('Zerodha disconnect failed:', error);
-            this.showError(error.message || 'Failed to disconnect Zerodha');
-        }
-    }
-
     async handleLogout() {
         if (confirm('Are you sure you want to logout?')) {
             try {
@@ -537,7 +401,6 @@ window.showLoginForm = () => authManager.showLoginForm();
 window.showRegisterForm = () => authManager.showRegisterForm();
 window.handleLogin = (event) => authManager.handleLogin(event);
 window.handleRegister = (event) => authManager.handleRegister(event);
-window.handleZerodhaConnection = () => authManager.handleZerodhaConnection();
 window.handleLogout = () => authManager.handleLogout();
 
 // Export auth manager for use in other scripts

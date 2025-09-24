@@ -55,9 +55,6 @@ class PutOptionsLTPFinder {
         };
 
         this.token = localStorage.getItem('authToken');
-        this.isCheckingConnection = false;
-        this.connectionStatus = null; // Cache connection status
-        this.lastErrorMessage = null; // Prevent duplicate error messages
         this.initialize();
     }
 
@@ -65,7 +62,6 @@ class PutOptionsLTPFinder {
         this.setupEventListeners();
         this.updateDataModeDisplay('demo');
         this.checkAuthenticationStatus();
-        this.checkZerodhaConnection();
     }
 
     checkAuthenticationStatus() {
@@ -194,8 +190,6 @@ class PutOptionsLTPFinder {
     setupEventListeners() {
         const calculateBtn = document.getElementById('calculatePremium');
         const logoutBtn = document.getElementById('logoutBtn');
-        const connectZerodhaBtn = document.getElementById('connectZerodhaBtn');
-        const disconnectZerodhaBtn = document.getElementById('disconnectZerodhaBtn');
 
         if (calculateBtn) {
             calculateBtn.addEventListener('click', () => this.calculatePutOptionsLTP());
@@ -203,14 +197,6 @@ class PutOptionsLTPFinder {
 
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => this.logout());
-        }
-
-        if (connectZerodhaBtn) {
-            connectZerodhaBtn.addEventListener('click', () => this.connectZerodha());
-        }
-
-        if (disconnectZerodhaBtn) {
-            disconnectZerodhaBtn.addEventListener('click', () => this.disconnectZerodha());
         }
 
         // Auto-calculate lot size when stock symbol changes
@@ -412,20 +398,14 @@ class PutOptionsLTPFinder {
     }
 
     showError(message) {
-        // Prevent duplicate error messages
-        if (this.lastErrorMessage === message) return;
-        
-        this.lastErrorMessage = message;
-        
         const errorEl = document.getElementById('errorMessage');
         if (errorEl) {
             errorEl.textContent = message;
             errorEl.style.display = 'block';
             
-            // Hide after 5 seconds and clear the last message
+            // Hide after 5 seconds
             setTimeout(() => {
                 errorEl.style.display = 'none';
-                this.lastErrorMessage = null;
             }, 5000);
         }
         
@@ -436,202 +416,9 @@ class PutOptionsLTPFinder {
         localStorage.removeItem('authToken');
         window.location.href = '/login.html';
     }
-
-    async checkZerodhaConnection() {
-        // Prevent multiple simultaneous checks
-        if (this.isCheckingConnection) return;
-        
-        this.isCheckingConnection = true;
-        
-        try {
-            const connected = await this.isZerodhaConnected();
-            
-            // Only update if status actually changed
-            if (this.connectionStatus !== connected) {
-                this.connectionStatus = connected;
-                this.updateConnectionStatus(connected);
-            }
-        } catch (error) {
-            console.error('Failed to check Zerodha connection:', error);
-            // Only update if we haven't already set it to false
-            if (this.connectionStatus !== false) {
-                this.connectionStatus = false;
-                this.updateConnectionStatus(false);
-            }
-        } finally {
-            this.isCheckingConnection = false;
-        }
-    }
-
-    updateConnectionStatus(connected) {
-        const statusEl = document.getElementById('connectionStatus');
-        const iconEl = document.getElementById('connectionIcon');
-        const connectBtn = document.getElementById('connectZerodhaBtn');
-        const disconnectBtn = document.getElementById('disconnectZerodhaBtn');
-
-        if (connected) {
-            if (statusEl) statusEl.textContent = 'Zerodha connected - Live market data available';
-            if (iconEl) iconEl.textContent = '✅';
-            if (connectBtn) connectBtn.style.display = 'none';
-            if (disconnectBtn) disconnectBtn.style.display = 'inline-block';
-        } else {
-            if (statusEl) statusEl.textContent = 'Connect Zerodha for live market data';
-            if (iconEl) iconEl.textContent = '🔗';
-            if (connectBtn) connectBtn.style.display = 'inline-block';
-            if (disconnectBtn) disconnectBtn.style.display = 'none';
-        }
-    }
-
-    async connectZerodha() {
-        try {
-            const connectBtn = document.getElementById('connectZerodhaBtn');
-            const originalText = connectBtn.textContent;
-            
-            connectBtn.textContent = 'Connecting...';
-            connectBtn.disabled = true;
-
-            // Get auth URL from backend
-            const response = await fetch('/api/zerodha/auth-url', {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to get auth URL');
-            }
-
-            const result = await response.json();
-            
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to get auth URL');
-            }
-
-            // Store state for verification
-            localStorage.setItem('zerodha_auth_state', result.data.state);
-
-            // Open Zerodha authentication in new window
-            const authWindow = window.open(
-                result.data.authUrl,
-                'zerodha_auth',
-                'width=600,height=700,scrollbars=yes,resizable=yes'
-            );
-
-            // Monitor the auth window
-            this.monitorAuthWindow(authWindow);
-
-        } catch (error) {
-            console.error('Zerodha connection failed:', error);
-            this.showError(error.message || 'Failed to connect to Zerodha');
-        } finally {
-            const connectBtn = document.getElementById('connectZerodhaBtn');
-            connectBtn.textContent = 'Connect Zerodha';
-            connectBtn.disabled = false;
-        }
-    }
-
-    monitorAuthWindow(authWindow) {
-        const checkClosed = setInterval(() => {
-            if (authWindow.closed) {
-                clearInterval(checkClosed);
-                
-                // Check if connection was successful after a delay
-                setTimeout(() => {
-                    this.checkZerodhaConnection();
-                }, 2000);
-            }
-        }, 2000); // Reduced frequency from 1000ms to 2000ms
-
-        // Listen for message from auth window
-        const messageHandler = async (event) => {
-            if (event.origin !== window.location.origin) return;
-            
-            if (event.data.type === 'ZERODHA_AUTH_SUCCESS') {
-                clearInterval(checkClosed);
-                authWindow.close();
-                
-                // Remove the event listener
-                window.removeEventListener('message', messageHandler);
-                
-                try {
-                    await this.exchangeRequestToken(event.data.request_token);
-                    setTimeout(() => {
-                        this.checkZerodhaConnection();
-                    }, 1000);
-                } catch (error) {
-                    console.error('Token exchange failed:', error);
-                    this.showError('Authentication failed: ' + error.message);
-                }
-            }
-        };
-
-        window.addEventListener('message', messageHandler);
-    }
-
-    async exchangeRequestToken(requestToken) {
-        const response = await fetch('/api/zerodha/access-token', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.token}`
-            },
-            body: JSON.stringify({
-                request_token: requestToken
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to exchange token');
-        }
-
-        const result = await response.json();
-        
-        if (!result.success) {
-            throw new Error(result.error || 'Token exchange failed');
-        }
-
-        return result.data;
-    }
-
-    async disconnectZerodha() {
-        try {
-            // For now, we'll just update the database to mark as disconnected
-            // In a full implementation, we might also revoke the token
-            const response = await fetch('/api/users/profile', {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
-                },
-                body: JSON.stringify({
-                    zerodha_connected: false,
-                    zerodha_access_token: null,
-                    zerodha_public_token: null,
-                    zerodha_user_id: null
-                })
-            });
-
-            if (response.ok) {
-                this.connectionStatus = false; // Update cached status
-                this.updateConnectionStatus(false);
-                this.updateDataModeDisplay('demo');
-            } else {
-                throw new Error('Failed to disconnect Zerodha');
-            }
-
-        } catch (error) {
-            console.error('Zerodha disconnection failed:', error);
-            this.showError(error.message || 'Failed to disconnect from Zerodha');
-        }
-    }
 }
 
 // Initialize the application when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Prevent multiple initialization
-    if (window.putOptionsLTPFinder) return;
-    
     window.putOptionsLTPFinder = new PutOptionsLTPFinder();
 });
