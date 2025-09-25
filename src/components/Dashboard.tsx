@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import OptionTracker from '@/components/OptionTracker'
+import OptionWatchlist from '@/components/OptionWatchlist'
 
 interface DashboardProps {
   user: User
@@ -75,8 +76,9 @@ export default function Dashboard({ user }: DashboardProps) {
       </nav>
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
+        <div className="px-4 py-6 sm:px-0 space-y-6">
           <OptionTracker />
+          <OptionWatchlist />
         </div>
       </main>
     </div>
