@@ -41,6 +41,21 @@ export default function OptionWatchlist() {
     [hasCompleteRow, userId]
   )
 
+  // Dynamically order rows by highest yield first (UI only; DB order unchanged)
+  const displayRows = useMemo(() => {
+    const arr = [...rows]
+    arr.sort((a: WatchlistRow, b: WatchlistRow) => {
+      const ya = quotes[a.id]?.yieldPct ?? -Infinity
+      const yb = quotes[b.id]?.yieldPct ?? -Infinity
+      if (yb !== ya) return yb - ya
+      const pa = (a as any).position ?? 0
+      const pb = (b as any).position ?? 0
+      if (pa !== pb) return pa - pb
+      return a.id.localeCompare(b.id)
+    })
+    return arr
+  }, [rows, quotes])
+
   // removeRow from context; also prune quotes
   const removeRowAndQuote = (id: string) => {
     removeRow(id)
@@ -145,12 +160,12 @@ export default function OptionWatchlist() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {displayRows.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-3 py-6 text-center text-gray-500 text-sm">No rows yet. Use “Add to Watchlist” above.</td>
               </tr>
             )}
-            {rows.map((r: WatchlistRow) => {
+            {displayRows.map((r: WatchlistRow) => {
               const q = quotes[r.id]
               return (
                 <tr key={r.id} className="border-b last:border-0">
