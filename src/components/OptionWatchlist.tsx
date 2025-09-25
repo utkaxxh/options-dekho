@@ -20,11 +20,9 @@ type QuoteRow = Row & {
 }
 
 export default function OptionWatchlist() {
-  const { userId, rows, addRow, updateRow, removeRow, replaceAll } = useWatchlist() as {
+  const { userId, rows, removeRow, replaceAll } = useWatchlist() as {
     userId: string | null,
     rows: WatchlistRow[],
-    addRow: (init?: Partial<WatchlistRow>) => Promise<void>,
-    updateRow: (id: string, patch: Partial<WatchlistRow>) => Promise<void>,
     removeRow: (id: string) => Promise<void>,
     replaceAll: (rows: WatchlistRow[]) => Promise<void>,
   }
@@ -43,15 +41,13 @@ export default function OptionWatchlist() {
     [hasCompleteRow, userId]
   )
 
-  // addRow comes from context (kept same name)
-
   // removeRow from context; also prune quotes
   const removeRowAndQuote = (id: string) => {
     removeRow(id)
     setQuotes(prev => { const copy = { ...prev }; delete copy[id]; return copy })
   }
 
-  // updateRow from context
+  // rows are read-only in UI; add via Option Details above
 
   const resolveAll = async () => {
     // Resolve only complete rows and preserve incomplete rows as-is
@@ -129,7 +125,6 @@ export default function OptionWatchlist() {
             <span className="ml-2 text-sm text-gray-700">Auto-refresh (10s)</span>
           </label>
           <button type="button" onClick={fetchQuotes} disabled={loading || !userId || !hasCompleteRow} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50">Refresh</button>
-          <button type="button" onClick={() => addRow()} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm">Add row</button>
         </div>
       </div>
 
@@ -152,7 +147,7 @@ export default function OptionWatchlist() {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-gray-500 text-sm">No rows yet. Click “Add row”.</td>
+                <td colSpan={6} className="px-3 py-6 text-center text-gray-500 text-sm">No rows yet. Use “Add to Watchlist” above.</td>
               </tr>
             )}
             {rows.map((r: WatchlistRow) => {
@@ -160,13 +155,13 @@ export default function OptionWatchlist() {
               return (
                 <tr key={r.id} className="border-b last:border-0">
                   <td className="px-3 py-2">
-                    <input className="w-32 px-2 py-1 border rounded" placeholder="RELIANCE" value={r.symbol} onChange={e => updateRow(r.id, { symbol: e.target.value.toUpperCase() })} />
+                    <span className="w-32 inline-block px-2 py-1 border rounded bg-gray-50 text-gray-700 select-text">{r.symbol}</span>
                   </td>
                   <td className="px-3 py-2">
-                    <input className="w-24 px-2 py-1 border rounded" type="number" placeholder="3000" value={r.strike} onChange={e => updateRow(r.id, { strike: e.target.value })} />
+                    <span className="w-24 inline-block px-2 py-1 border rounded bg-gray-50 text-gray-700 select-text">{r.strike}</span>
                   </td>
                   <td className="px-3 py-2">
-                    <input className="w-40 px-2 py-1 border rounded" placeholder="YYYY-MM-DD" value={r.expiry} onChange={e => updateRow(r.id, { expiry: e.target.value })} />
+                    <span className="w-40 inline-block px-2 py-1 border rounded bg-gray-50 text-gray-700 select-text">{r.expiry}</span>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{q?.ltp?.toFixed(2) ?? '-'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{q?.yieldPct != null ? q.yieldPct.toFixed(2) : '-'}</td>
