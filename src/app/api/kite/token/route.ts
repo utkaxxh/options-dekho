@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { TokenManager } from '@/lib/tokenManager'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { request_token } = body
+    const { request_token, user_id } = body
 
     const api_key = process.env.KITE_API_KEY
     const api_secret = process.env.KITE_API_SECRET
 
-    if (!api_key || !api_secret || !request_token) {
+    if (!api_key || !api_secret || !request_token || !user_id) {
       return NextResponse.json(
-        { error: 'Missing API credentials or request token' },
+        { error: 'Missing API credentials, request token, or user ID' },
         { status: 400 }
       )
     }
@@ -43,6 +44,12 @@ export async function POST(request: NextRequest) {
         { error: data.message || 'Failed to generate access token' },
         { status: 400 }
       )
+    }
+
+    // Save token to database
+    if (data.access_token) {
+      const tokenManager = new TokenManager()
+      await tokenManager.saveToken(user_id, data.access_token)
     }
 
     return NextResponse.json(data)

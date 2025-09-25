@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { createClient } from '@/lib/supabase'
 
 interface OptionData {
   last_price: number
@@ -18,15 +19,56 @@ export default function OptionTracker() {
   const [strike, setStrike] = useState('')
   const [expiry, setExpiry] = useState('')
   const [requestToken, setRequestToken] = useState('')
-  const [accessToken, setAccessToken] = useState('')
+  const [hasValidToken, setHasValidToken] = useState(false)
+  const [tokenExpiringSoon, setTokenExpiringSoon] = useState(false)
   const [optionData, setOptionData] = useState<OptionData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [autoUpdate, setAutoUpdate] = useState(false)
   const [showTokenInput, setShowTokenInput] = useState(false)
+  const [userId, setUserId] = useState<string>('')
+
+  const supabase = createClient()
 
   const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
     'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+
+  // Get user ID on component mount
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        setUserId(session.user.id)
+      }
+    }
+    getUser()
+  }, [supabase])
+
+  // Check for existing valid token when user ID is available
+  useEffect(() => {
+    if (userId) {
+      checkTokenStatus()
+    }
+  }, [userId])
+
+  const checkTokenStatus = async () => {
+    if (!userId) return
+
+    try {
+      const response = await axios.get(`/api/kite/token-status?user_id=${userId}`)
+      const { hasValidToken: hasToken, expiringSoon } = response.data
+      
+      setHasValidToken(hasToken)
+      setTokenExpiringSoon(expiringSoon)
+      
+      if (expiringSoon) {
+        setError('Your Kite token will expire soon. Please re-authenticate.')
+      }
+    } catch (err) {
+      console.error('Token status check failed:', err)
+      setHasValidToken(false)
+    }
+  }
 
   const generateTradingSymbol = () => {
     if (!symbol || !strike || !expiry) return ''
@@ -58,7 +100,7 @@ export default function OptionTracker() {
   }
 
   const generateAccessToken = async () => {
-    if (!requestToken) {
+    if (!requestToken || !userId) {
       setError('Please enter the request token')
       return
     }
@@ -68,11 +110,14 @@ export default function OptionTracker() {
 
     try {
       const response = await axios.post('/api/kite/token', {
-        request_token: requestToken
+        request_token: requestToken,
+        user_id: userId
       })
 
       if (response.data.access_token) {
-        setAccessToken(response.data.access_token)
+        setHasValidToken(true)
+        setShowTokenInput(false)
+        setRequestToken('')
         setError('')
       }
     } catch (err: any) {
@@ -83,8 +128,8 @@ export default function OptionTracker() {
   }
 
   const fetchOptionData = async () => {
-    if (!accessToken) {
-      setError('Please generate access token first')
+    if (!hasValidToken || !userId) {
+      setError('Please authenticate with Kite first')
       return
     }
 
@@ -100,7 +145,7 @@ export default function OptionTracker() {
     try {
       const response = await axios.get('/api/kite/quote', {
         params: {
-          access_token: accessToken,
+          user_id: userId,
           instruments: `NFO:${tradingSymbol}`
         }
       })
@@ -112,27 +157,41 @@ export default function OptionTracker() {
         setError('No data found for the given option')
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch option data')
+      const errorMsg = err.response?.data?.error || 'Failed to fetch option data'
+      setError(errorMsg)
+      
+      // If token is invalid, reset authentication state
+      if (err.response?.data?.requiresAuth) {
+        setHasValidToken(false)
+        setShowTokenInput(false)
+      }
     } finally {
       setLoading(false)
     }
   }
 
+  const handleReAuthenticate = () => {
+    setHasValidToken(false)
+    setShowTokenInput(false)
+    setTokenExpiringSoon(false)
+    setError('')
+  }
+
   // Auto-update every 10 seconds
   useEffect(() => {
     let interval: NodeJS.Timeout
-    if (autoUpdate && accessToken && optionData) {
+    if (autoUpdate && hasValidToken && optionData) {
       interval = setInterval(() => {
         fetchOptionData()
       }, 10000)
     }
     return () => clearInterval(interval)
-  }, [autoUpdate, accessToken, optionData])
+  }, [autoUpdate, hasValidToken, optionData])
 
   return (
     <div className="space-y-6">
       {/* Kite Authentication Section */}
-      {!accessToken && (
+      {!hasValidToken && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Kite Authentication</h3>
           
@@ -172,6 +231,23 @@ export default function OptionTracker() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Token Expiry Warning */}
+      {hasValidToken && tokenExpiringSoon && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-yellow-800">
+              ⚠️ Your Kite token will expire soon. Re-authenticate to continue using the app.
+            </div>
+            <button
+              onClick={handleReAuthenticate}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+            >
+              Re-authenticate
+            </button>
+          </div>
         </div>
       )}
 
@@ -238,7 +314,7 @@ export default function OptionTracker() {
           
           <button
             onClick={fetchOptionData}
-            disabled={loading || !accessToken}
+            disabled={loading || !hasValidToken}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium disabled:opacity-50"
           >
             {loading ? 'Loading...' : 'Get LTP'}

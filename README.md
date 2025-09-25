@@ -53,6 +53,33 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 2. Get your project URL and anonymous key from the API settings
 3. Update the `.env.local` file with your Supabase credentials
 
+#### Create the Token Storage Table
+
+In your Supabase SQL Editor, run this query to create the token storage table:
+
+```sql
+-- Create user_kite_tokens table
+CREATE TABLE user_kite_tokens (
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  access_token text NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone NOT NULL,
+  UNIQUE(user_id)
+);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE user_kite_tokens ENABLE ROW LEVEL SECURITY;
+
+-- Create policy so users can only access their own tokens
+CREATE POLICY "Users can only access their own tokens" ON user_kite_tokens
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Create index for performance
+CREATE INDEX idx_user_kite_tokens_user_id ON user_kite_tokens(user_id);
+CREATE INDEX idx_user_kite_tokens_expires_at ON user_kite_tokens(expires_at);
+```
+
 ### 5. Kite API Setup
 
 1. Register at [Kite Connect](https://kite.trade/docs/connect/v3/)
