@@ -1,9 +1,9 @@
-const express = require(''express'');
-const cors = require(''cors'');
-const crypto = require(''crypto'');
-const fetch = require(''node-fetch'');
-const { createClient } = require(''@supabase/supabase-js'');
-require(''dotenv'').config();
+const express = require('express');
+const cors = require('cors');
+const crypto = require('crypto');
+const fetch = require('node-fetch');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,7 +25,259 @@ const supabase = createClient(
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(''public''));
+app.use(express.static('public'));
+
+// Helper to call Kite API with current user's access token and handle expiry
+async function kiteApiCall(userProfile, endpoint, { method = 'GET', body = null, isCSV = false } = {}) {
+  if (!userProfile?.zerodha_connected || !userProfile?.zerodha_access_token) {
+    const err = new Error('Zerodha account not connected');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const headers = {
+    Authorization: `token ${KITE_API_KEY}:${userProfile.zerodha_access_token}`,
+    'X-Kite-Version': '3'
+  };
+
+  let fetchOpts = { method, headers };
+  if (body && method !== 'GET') {
+    if (isCSV) {
+      fetchOpts.body = body;
+    } else {
+      headers['Content-Type'] = 'application/json';
+      fetchOpts.body = JSON.stringify(body);
+    }
+  }
+
+  const resp = await fetch(endpoint, fetchOpts);
+  const text = await resp.text();
+
+  // Try JSON parse when not CSV
+  let parsed;
+  if (!isCSV) {
+    try { parsed = JSON.parse(text); } catch (_) {}
+  }
+
+  const message = parsed?.message || parsed?.error_type || text;
+
+  // Handle token expiry/invalid cases
+  if (resp.status === 401 || resp.status === 403 || /Token is invalid|expired/i.test(message || '')) {
+    // Mark user as disconnected so client can re-trigger login
+    try {
+      await supabase
+        .from('users')
+        .update({
+          zerodha_connected: false,
+          zerodha_access_token: null,
+          zerodha_public_token: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userProfile.id);
+    } catch (e) {
+      console.warn('Failed to mark user disconnected after token expiry:', e.message);
+    }
+
+    const err = new Error('Zerodha session expired. Please reconnect.');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  if (!resp.ok) {
+    const err = new Error(message || `Kite API error ${resp.status}`);
+    err.statusCode = resp.status;
+    throw err;
+  }
+
+  return isCSV ? text : parsed;
+}
+
+// Helper using a centralized env KITE_ACCESS_TOKEN (public endpoints use this)
+async function kiteApiCallWithEnv(endpoint, { method = 'GET', body = null, isCSV = false } = {}) {
+  const apiKey = KITE_API_KEY;
+  const accessToken = process.env.KITE_ACCESS_TOKEN;
+  if (!apiKey || !accessToken) {
+    const err = new Error('Kite API key or access token not configured');
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const headers = {
+    Authorization: `token ${apiKey}:${accessToken}`,
+    'X-Kite-Version': '3'
+  };
+
+  let fetchOpts = { method, headers };
+  if (body && method !== 'GET') {
+    if (isCSV) {
+      fetchOpts.body = body;
+    } else {
+      headers['Content-Type'] = 'application/json';
+      fetchOpts.body = JSON.stringify(body);
+    }
+  }
+
+  const resp = await fetch(endpoint, fetchOpts);
+  const text = await resp.text();
+  let parsed;
+  if (!isCSV) {
+    try { parsed = JSON.parse(text); } catch (_) {}
+  }
+
+  const message = parsed?.message || parsed?.error_type || text;
+
+  if (resp.status === 401 || resp.status === 403 || /Token is invalid|expired/i.test(message || '')) {
+    const err = new Error('Kite access token expired. Please refresh KITE_ACCESS_TOKEN.');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  if (!resp.ok) {
+    const err = new Error(message || `Kite API error ${resp.status}`);
+    err.statusCode = resp.status;
+    throw err;
+  }
+
+  return isCSV ? text : parsed;
+}
+
+// Public endpoints (no auth) for market data
+app.get('/api/market/expiries', async (req, res) => {
+  try {
+    const symbol = (req.query.symbol || '').toUpperCase().trim();
+    if (!symbol) {
+      return res.status(400).json({ success: false, error: 'symbol is required' });
+    }
+
+    const csv = await kiteApiCallWithEnv('https://api.kite.trade/instruments/NFO', { method: 'GET', isCSV: true });
+    const lines = csv.split('\n');
+    const headers = lines[0].split(',');
+    const idxName = headers.findIndex(h => h.trim() === 'name');
+    const idxExpiry = headers.findIndex(h => h.trim() === 'expiry');
+    const idxType = headers.findIndex(h => h.trim() === 'instrument_type');
+
+    const expiries = new Set();
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(',');
+      if (row.length <= Math.max(idxName, idxExpiry, idxType)) continue;
+      const name = (row[idxName] || '').trim();
+      const itype = (row[idxType] || '').trim();
+      if (name === symbol && (itype === 'PE' || itype === 'CE')) {
+        expiries.add((row[idxExpiry] || '').trim());
+      }
+    }
+    const sorted = Array.from(expiries).filter(Boolean).sort();
+    res.json({ success: true, data: sorted });
+  } catch (error) {
+    const code = error.statusCode || 500;
+    res.status(code).json({ success: false, error: error.message || 'Failed to fetch expiries' });
+  }
+});
+
+app.get('/api/market/strikes', async (req, res) => {
+  try {
+    const symbol = (req.query.symbol || '').toUpperCase().trim();
+    const expiry = (req.query.expiry || '').trim();
+    const optionType = ((req.query.optionType || 'PE').toUpperCase() === 'CE') ? 'CE' : 'PE';
+    if (!symbol || !expiry) {
+      return res.status(400).json({ success: false, error: 'symbol and expiry are required' });
+    }
+
+    const csv = await kiteApiCallWithEnv('https://api.kite.trade/instruments/NFO', { method: 'GET', isCSV: true });
+    const lines = csv.split('\n');
+    const headers = lines[0].split(',');
+    const idxName = headers.findIndex(h => h.trim() === 'name');
+    const idxExpiry = headers.findIndex(h => h.trim() === 'expiry');
+    const idxType = headers.findIndex(h => h.trim() === 'instrument_type');
+    const idxStrike = headers.findIndex(h => h.trim() === 'strike');
+
+    const strikes = new Set();
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(',');
+      if (row.length <= Math.max(idxName, idxExpiry, idxType, idxStrike)) continue;
+      const name = (row[idxName] || '').trim();
+      const exp = (row[idxExpiry] || '').trim();
+      const itype = (row[idxType] || '').trim();
+      if (name === symbol && exp === expiry && itype === optionType) {
+        const s = parseFloat(row[idxStrike]);
+        if (!Number.isNaN(s)) strikes.add(s);
+      }
+    }
+    const sorted = Array.from(strikes).sort((a, b) => a - b);
+    res.json({ success: true, data: sorted });
+  } catch (error) {
+    const code = error.statusCode || 500;
+    res.status(code).json({ success: false, error: error.message || 'Failed to fetch strikes' });
+  }
+});
+
+app.post('/api/market/put-ltp', async (req, res) => {
+  try {
+    const { symbol, expiry, strike } = req.body || {};
+    const s = (symbol || '').toUpperCase().trim();
+    const e = (expiry || '').trim();
+    const k = Number(strike);
+    if (!s || !e || !Number.isFinite(k)) {
+      return res.status(400).json({ success: false, error: 'symbol, expiry, and strike are required' });
+    }
+
+    const csv = await kiteApiCallWithEnv('https://api.kite.trade/instruments/NFO', { method: 'GET', isCSV: true });
+    const lines = csv.split('\n');
+    const headers = lines[0].split(',');
+    const idxName = headers.findIndex(h => h.trim() === 'name');
+    const idxExpiry = headers.findIndex(h => h.trim() === 'expiry');
+    const idxType = headers.findIndex(h => h.trim() === 'instrument_type');
+    const idxStrike = headers.findIndex(h => h.trim() === 'strike');
+    const idxToken = headers.findIndex(h => h.trim() === 'instrument_token');
+    const idxTSym = headers.findIndex(h => h.trim() === 'tradingsymbol');
+    const idxLot = headers.findIndex(h => h.trim() === 'lot_size');
+
+    const options = [];
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(',');
+      if (row.length <= Math.max(idxName, idxExpiry, idxType, idxStrike, idxToken, idxTSym, idxLot)) continue;
+      if ((row[idxName] || '').trim() !== s) continue;
+      if ((row[idxExpiry] || '').trim() !== e) continue;
+      if ((row[idxType] || '').trim() !== 'PE') continue;
+      const strikeVal = parseFloat(row[idxStrike]);
+      if (Number.isNaN(strikeVal)) continue;
+      options.push({
+        instrument_token: (row[idxToken] || '').trim(),
+        tradingsymbol: (row[idxTSym] || '').trim(),
+        strike: strikeVal,
+        lot_size: parseInt((row[idxLot] || '0').trim(), 10) || 0
+      });
+    }
+
+    if (options.length === 0) {
+      return res.json({ success: true, data: null, message: 'No put options found for the specified symbol and expiry' });
+    }
+
+    // Exact or nearest strike
+    options.sort((a, b) => Math.abs(a.strike - k) - Math.abs(b.strike - k));
+    const chosen = options[0];
+
+    const ltpData = await kiteApiCallWithEnv('https://api.kite.trade/quote/ltp', {
+      method: 'POST',
+      body: { i: [chosen.instrument_token] }
+    });
+
+    const ltp = ltpData?.data?.[chosen.instrument_token]?.last_price || 0;
+    res.json({
+      success: true,
+      data: {
+        ltp,
+        instrument_token: chosen.instrument_token,
+        tradingsymbol: chosen.tradingsymbol,
+        usedStrike: chosen.strike,
+        lot_size: chosen.lot_size
+      }
+    });
+  } catch (error) {
+    const code = error.statusCode || 500;
+    res.status(code).json({ success: false, error: error.message || 'Failed to fetch put LTP' });
+  }
+});
 
 const mapUserProfile = (record) => ({
   id: record.id,
@@ -42,22 +294,22 @@ const getDisplayName = (authUser) => {
   return (
     (metadata.full_name && metadata.full_name.trim()) ||
     (metadata.name && metadata.name.trim()) ||
-    (authUser.email ? authUser.email.split(''@'')[0] : null) ||
-    ''User''
+  (authUser.email ? authUser.email.split('@')[0] : null) ||
+  'User'
   );
 };
 
 const ensureUserRecord = async (authUser) => {
-  const email = (authUser.email || '''').toLowerCase();
+  const email = (authUser.email || '').toLowerCase();
 
   if (!email) {
-    throw new Error(''Authenticated user is missing an email address'');
+  throw new Error('Authenticated user is missing an email address');
   }
 
   const { data: existing, error: selectError } = await supabase
-    .from(''users'')
-    .select(''*'')
-    .eq(''email'', email)
+    .from('users')
+    .select('*')
+    .eq('email', email)
     .maybeSingle();
 
   if (selectError) {
@@ -70,14 +322,14 @@ const ensureUserRecord = async (authUser) => {
     const insertPayload = {
       email,
       name: getDisplayName(authUser),
-      password_hash: ''supabase-managed'',
+  password_hash: 'supabase-managed',
       email_confirmed: !!authUser.email_confirmed_at,
       created_at: now,
       updated_at: now
     };
 
     const { data: created, error: insertError } = await supabase
-      .from(''users'')
+      .from('users')
       .insert([insertPayload])
       .select()
       .single();
@@ -107,9 +359,9 @@ const ensureUserRecord = async (authUser) => {
   updates.updated_at = now;
 
   const { data: updated, error: updateError } = await supabase
-    .from(''users'')
+    .from('users')
     .update(updates)
-    .eq(''id'', existing.id)
+    .eq('id', existing.id)
     .select()
     .single();
 
@@ -124,20 +376,20 @@ const authenticateRequest = async (req, res, next) => {
   try {
     const authorization = req.headers.authorization || '';
 
-    if (!authorization.startsWith(''Bearer '')) {
-      return res.status(401).json({ success: false, error: ''Access token required'' });
+    if (!authorization.startsWith('Bearer ')) {
+  return res.status(401).json({ success: false, error: 'Access token required' });
     }
 
-    const token = authorization.slice(''Bearer ''.Length).trim();
+    const token = authorization.slice('Bearer '.length).trim();
 
     if (!token) {
-      return res.status(401).json({ success: false, error: ''Access token required'' });
+  return res.status(401).json({ success: false, error: 'Access token required' });
     }
 
-    const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } = await supabase.auth.getUser(token);
 
     if (error || !data?.user) {
-      return res.status(401).json({ success: false, error: ''Invalid or expired token'' });
+  return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     }
 
     const userRecord = await ensureUserRecord(data.user);
@@ -150,8 +402,8 @@ const authenticateRequest = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error(''Authentication error:'', error);
-    res.status(401).json({ success: false, error: ''Authentication failed'' });
+  console.error('Authentication error:', error);
+  res.status(401).json({ success: false, error: 'Authentication failed' });
   }
 };
 
@@ -180,7 +432,7 @@ const updateSupabaseMetadataName = async (authUser, nextName) => {
       }
     });
   } catch (error) {
-    console.warn(''Supabase metadata update failed:'', error.message);
+  console.warn('Supabase metadata update failed:', error.message);
   }
 };
 
@@ -199,11 +451,11 @@ app.post('/api/users/sync', authenticateRequest, (req, res) => {
 app.patch('/api/users/profile', authenticateRequest, async (req, res) => {
   try {
     const allowedFields = [
-      ''name'',
-      ''zerodha_connected'',
-      ''zerodha_access_token'',
-      ''zerodha_public_token'',
-      ''zerodha_user_id''
+  'name',
+  'zerodha_connected',
+  'zerodha_access_token',
+  'zerodha_public_token',
+  'zerodha_user_id'
     ];
 
     const updates = {};
@@ -216,16 +468,16 @@ app.patch('/api/users/profile', authenticateRequest, async (req, res) => {
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({
         success: false,
-        error: ''No valid fields to update''
+        error: 'No valid fields to update'
       });
     }
 
     updates.updated_at = new Date().toISOString();
 
     const { data: updatedProfile, error } = await supabase
-      .from(''users'')
+      .from('users')
       .update(updates)
-      .eq(''id'', req.currentUser.profile.id)
+      .eq('id', req.currentUser.profile.id)
       .select()
       .single();
 
@@ -241,10 +493,10 @@ app.patch('/api/users/profile', authenticateRequest, async (req, res) => {
 
     sendProfileResponse(res, updatedProfile);
   } catch (error) {
-    console.error(''Profile update error:'', error);
+  console.error('Profile update error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || ''Failed to update profile''
+  error: error.message || 'Failed to update profile'
     });
   }
 });
@@ -253,8 +505,8 @@ app.put('/api/auth/profile', authenticateRequest, async (req, res) => {
   try {
     const { name } = req.body || {};
 
-    if (!name || typeof name !== ''string'' || !name.trim()) {
-      return res.status(400).json({ success: false, error: ''Name is required'' });
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'Name is required' });
     }
 
     const updates = {
@@ -263,9 +515,9 @@ app.put('/api/auth/profile', authenticateRequest, async (req, res) => {
     };
 
     const { data: updatedProfile, error } = await supabase
-      .from(''users'')
+      .from('users')
       .update(updates)
-      .eq(''id'', req.currentUser.profile.id)
+      .eq('id', req.currentUser.profile.id)
       .select()
       .single();
 
@@ -278,10 +530,10 @@ app.put('/api/auth/profile', authenticateRequest, async (req, res) => {
 
     sendProfileResponse(res, updatedProfile);
   } catch (error) {
-    console.error(''Profile update error:'', error);
+  console.error('Profile update error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || ''Failed to update profile''
+  error: error.message || 'Failed to update profile'
     });
   }
 });
@@ -291,11 +543,11 @@ app.get('/api/zerodha/auth-url', authenticateRequest, (req, res) => {
     if (!KITE_API_KEY) {
       return res.status(500).json({
         success: false,
-        error: ''Kite API key not configured''
+  error: 'Kite API key not configured'
       });
     }
 
-    const state = crypto.randomBytes(32).toString(''hex'');
+  const state = crypto.randomBytes(32).toString('hex');
 
     const authUrl = `https://kite.zerodha.com/connect/login?api_key=${KITE_API_KEY}&v=3&state=${state}`;
     const redirectUrl = `${APP_URL}/api/zerodha/callback`;
@@ -309,10 +561,10 @@ app.get('/api/zerodha/auth-url', authenticateRequest, (req, res) => {
       }
     });
   } catch (error) {
-    console.error(''Zerodha auth URL error:'', error);
+  console.error('Zerodha auth URL error:', error);
     res.status(500).json({
       success: false,
-      error: ''Failed to generate authentication URL''
+  error: 'Failed to generate authentication URL'
     });
   }
 });
@@ -322,17 +574,17 @@ app.get('/api/zerodha/callback', async (req, res) => {
     const { request_token, action, status, state, error } = req.query;
 
     const params = new URLSearchParams({
-      request_token: request_token || '''',
-      action: action || '''',
-      status: status || ''error'',
-      state: state || '''',
-      error: error || ''''
+  request_token: request_token || '',
+  action: action || '',
+  status: status || 'error',
+  state: state || '',
+  error: error || ''
     });
 
-    res.redirect(`/zerodha-auth-callback.html?${params.toString()}`);
+  res.redirect(`/zerodha-auth-callback.html?${params.toString()}`);
   } catch (error) {
-    console.error(''Zerodha callback error:'', error);
-    res.redirect(`/zerodha-auth-callback.html?status=error&error=${encodeURIComponent(error.message)}`);
+  console.error('Zerodha callback error:', error);
+  res.redirect(`/zerodha-auth-callback.html?status=error&error=${encodeURIComponent(error.message)}`);
   }
 });
 
@@ -343,20 +595,20 @@ app.post('/api/zerodha/access-token', authenticateRequest, async (req, res) => {
     if (!request_token) {
       return res.status(400).json({
         success: false,
-        error: ''Request token is required''
+  error: 'Request token is required'
       });
     }
 
     const checksum = crypto
-      .createHash(''sha256'')
+      .createHash('sha256')
       .update(KITE_API_KEY + request_token + KITE_API_SECRET)
-      .digest(''hex'');
+      .digest('hex');
 
-    const response = await fetch(''https://api.kite.trade/session/token'', {
-      method: ''POST'',
+    const response = await fetch('https://api.kite.trade/session/token', {
+      method: 'POST',
       headers: {
-        'Content-Type': ''application/x-www-form-urlencoded'',
-        'X-Kite-Version': ''3''
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Kite-Version': '3'
       },
       body: new URLSearchParams({
         api_key: KITE_API_KEY,
@@ -368,7 +620,7 @@ app.post('/api/zerodha/access-token', authenticateRequest, async (req, res) => {
     const result = await response.json();
 
     if (!response.ok) {
-      throw new Error(result.message || ''Failed to get access token'');
+  throw new Error(result.message || 'Failed to get access token');
     }
 
     const updates = {
@@ -380,14 +632,14 @@ app.post('/api/zerodha/access-token', authenticateRequest, async (req, res) => {
     };
 
     const { data: updatedProfile, error: updateError } = await supabase
-      .from(''users'')
+      .from('users')
       .update(updates)
-      .eq(''id'', req.currentUser.profile.id)
+  .eq('id', req.currentUser.profile.id)
       .select()
       .single();
 
     if (updateError) {
-      throw new Error(''Failed to save Zerodha credentials'');
+  throw new Error('Failed to save Zerodha credentials');
     }
 
     req.currentUser.profile = updatedProfile;
@@ -402,10 +654,10 @@ app.post('/api/zerodha/access-token', authenticateRequest, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(''Access token exchange error:'', error);
+  console.error('Access token exchange error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || ''Failed to exchange access token''
+      error: error.message || 'Failed to exchange access token'
     });
   }
 });
@@ -414,28 +666,9 @@ app.get('/api/zerodha/instruments', authenticateRequest, async (req, res) => {
   try {
     const { symbol } = req.query;
     const userProfile = req.currentUser.profile;
-
-    if (!userProfile.zerodha_connected || !userProfile.zerodha_access_token) {
-      return res.status(400).json({
-        success: false,
-        error: ''Zerodha account not connected''
-      });
-    }
-
-    const response = await fetch(''https://api.kite.trade/instruments'', {
-      headers: {
-        Authorization: `token ${KITE_API_KEY}:${userProfile.zerodha_access_token}`,
-        'X-Kite-Version': ''3''
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(''Failed to fetch instruments'');
-    }
-
-    const csvData = await response.text();
-    const lines = csvData.split(''\n'');
-    const headers = lines[0].split('','');
+    const csvData = await kiteApiCall(userProfile, 'https://api.kite.trade/instruments', { method: 'GET', isCSV: true });
+  const lines = csvData.split('\n');
+  const headers = lines[0].split(',');
 
     const instruments = [];
 
@@ -447,7 +680,7 @@ app.get('/api/zerodha/instruments', authenticateRequest, async (req, res) => {
           instrument[header.trim()] = row[index]?.trim();
         });
 
-        if (instrument.segment === ''NFO-OPT'' || instrument.segment === ''BFO-OPT'') {
+        if (instrument.segment === 'NFO-OPT' || instrument.segment === 'BFO-OPT') {
           if (!symbol || instrument.name?.includes(symbol.toUpperCase())) {
             instruments.push(instrument);
           }
@@ -460,10 +693,11 @@ app.get('/api/zerodha/instruments', authenticateRequest, async (req, res) => {
       data: instruments.slice(0, 100)
     });
   } catch (error) {
-    console.error(''Instruments fetch error:'', error);
-    res.status(500).json({
+    console.error('Instruments fetch error:', error);
+    const code = error.statusCode || 500;
+    res.status(code).json({
       success: false,
-      error: error.message || ''Failed to fetch instruments''
+      error: error.message || 'Failed to fetch instruments'
     });
   }
 });
@@ -476,34 +710,16 @@ app.post('/api/zerodha/option-chain', authenticateRequest, async (req, res) => {
     if (!symbol || !expiry) {
       return res.status(400).json({
         success: false,
-        error: ''Symbol and expiry are required''
+        error: 'Symbol and expiry are required'
       });
     }
 
-    if (!userProfile.zerodha_connected || !userProfile.zerodha_access_token) {
-      return res.status(400).json({
-        success: false,
-        error: ''Zerodha account not connected''
-      });
-    }
-
-    const instrumentsResponse = await fetch(''https://api.kite.trade/instruments/NFO'', {
-      headers: {
-        Authorization: `token ${KITE_API_KEY}:${userProfile.zerodha_access_token}`,
-        'X-Kite-Version': ''3''
-      }
-    });
-
-    if (!instrumentsResponse.ok) {
-      throw new Error(''Failed to fetch instruments'');
-    }
-
-    const csvData = await instrumentsResponse.text();
-    const lines = csvData.split(''\n'');
-    const headers = lines[0].split('','');
+    const csvData = await kiteApiCall(userProfile, 'https://api.kite.trade/instruments/NFO', { method: 'GET', isCSV: true });
+  const lines = csvData.split('\n');
+  const headers = lines[0].split(',');
 
     const optionInstruments = [];
-    const targetDate = new Date(expiry).toISOString().split(''T'')[0];
+  const targetDate = new Date(expiry).toISOString().split('T')[0];
 
     for (let i = 1; i < lines.length; i++) {
       const row = lines[i].split('','');
@@ -515,7 +731,7 @@ app.post('/api/zerodha/option-chain', authenticateRequest, async (req, res) => {
 
         if (
           instrument.name === symbol.toUpperCase() &&
-          instrument.instrument_type === ''PE'' &&
+          instrument.instrument_type === 'PE' &&
           instrument.expiry === targetDate
         ) {
           optionInstruments.push({
@@ -532,30 +748,18 @@ app.post('/api/zerodha/option-chain', authenticateRequest, async (req, res) => {
       return res.json({
         success: true,
         data: [],
-        message: ''No put options found for the specified symbol and expiry''
+  message: 'No put options found for the specified symbol and expiry'
       });
     }
 
     const limitedInstruments = optionInstruments.slice(0, 50);
     const instrumentTokens = limitedInstruments.map((inst) => inst.instrument_token);
 
-    const ltpResponse = await fetch(''https://api.kite.trade/quote/ltp'', {
-      method: ''POST'',
-      headers: {
-        Authorization: `token ${KITE_API_KEY}:${userProfile.zerodha_access_token}`,
-        'X-Kite-Version': ''3'',
-        'Content-Type': ''application/json''
-      },
-      body: JSON.stringify({
-        i: instrumentTokens
-      })
-    });
-
-    const ltpData = await ltpResponse.json();
-
-    if (!ltpResponse.ok) {
-      throw new Error(ltpData.message || ''Failed to get LTP data'');
-    }
+    const ltpData = await kiteApiCall(
+      userProfile,
+      'https://api.kite.trade/quote/ltp',
+      { method: 'POST', body: { i: instrumentTokens } }
+    );
 
     const optionChain = limitedInstruments.map((inst) => ({
       ...inst,
@@ -567,10 +771,11 @@ app.post('/api/zerodha/option-chain', authenticateRequest, async (req, res) => {
       data: optionChain
     });
   } catch (error) {
-    console.error(''Option chain error:'', error);
-    res.status(500).json({
+    console.error('Option chain error:', error);
+    const code = error.statusCode || 500;
+    res.status(code).json({
       success: false,
-      error: error.message || ''Failed to fetch option chain''
+      error: error.message || 'Failed to fetch option chain'
     });
   }
 });
@@ -586,9 +791,9 @@ app.patch('/api/users/zerodha/disconnect', authenticateRequest, async (req, res)
     };
 
     const { data: updatedProfile, error } = await supabase
-      .from(''users'')
+      .from('users')
       .update(updates)
-      .eq(''id'', req.currentUser.profile.id)
+      .eq('id', req.currentUser.profile.id)
       .select()
       .single();
 
@@ -603,10 +808,10 @@ app.patch('/api/users/zerodha/disconnect', authenticateRequest, async (req, res)
       data: mapUserProfile(updatedProfile)
     });
   } catch (error) {
-    console.error(''Zerodha disconnection failed:'', error);
+    console.error('Zerodha disconnection failed:', error);
     res.status(500).json({
       success: false,
-      error: error.message || ''Failed to disconnect from Zerodha''
+      error: error.message || 'Failed to disconnect from Zerodha'
     });
   }
 });
@@ -624,10 +829,10 @@ app.get('/app', (req, res) => {
 });
 
 app.get('/confirm', (req, res) => {
-  res.sendFile(__ dirname + '/public/confirm.html');
+  res.sendFile(__dirname + '/public/confirm.html');
 });
 
-app.get('/api/health', (req, res) => {
+app.get(['/api/health', '/healthz'], (req, res) => {
   res.json({
     success: true,
     message: 'Options Dekho API is running',
@@ -635,12 +840,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Only serve SPA for non-API GETs; for unknown API routes, always return JSON 404
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, error: 'API endpoint not found' });
+});
+
 app.get('*', (req, res) => {
-  if (req.path.startsWith('/api/')) {
-    res.status(404).json({ success: false, error: 'API endpoint not found' });
-  } else {
-    res.sendFile(__dirname + '/public/app.html');
-  }
+  res.sendFile(__dirname + '/public/app.html');
 });
 
 app.use((err, req, res, next) => {
@@ -652,9 +858,9 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(` Options Dekho server running on port ${PORT}`);
-  console.log(` Frontend: http://localhost:${PORT}`);
-  console.log(` API Base: http://localhost:${PORT}/api`);
-  console.log(`  Supabase URL configured: ${!!process.env.SUPABASE_URL}`);
-  console.log(` Service role key configured: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
+  console.log(`Options Dekho server running on port ${PORT}`);
+  console.log(`Frontend: http://localhost:${PORT}`);
+  console.log(`API Base: http://localhost:${PORT}/api`);
+  console.log(`Supabase URL configured: ${!!process.env.SUPABASE_URL}`);
+  console.log(`Service role key configured: ${!!process.env.SUPABASE_SERVICE_ROLE_KEY}`);
 });

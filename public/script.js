@@ -1,59 +1,6 @@
 // Put Options LTP Finder with Authentication
 class PutOptionsLTPFinder {
     constructor() {
-        // Lot sizes for popular stocks (shares per lot)
-        this.lotSizes = {
-            'RELIANCE': 505,
-            'TCS': 1125,
-            'INFY': 600,
-            'HDFCBANK': 550,
-            'ICICIBANK': 1375,
-            'KOTAKBANK': 400,
-            'HINDUNILVR': 300,
-            'SBIN': 3000,
-            'BHARTIARTL': 1700,
-            'ITC': 1600,
-            'LT': 600,
-            'AXISBANK': 1200,
-            'ASIANPAINT': 300,
-            'MARUTI': 300,
-            'SUNPHARMA': 700,
-            'TITAN': 1200,
-            'ULTRACEMCO': 200,
-            'NESTLEIND': 100,
-            'POWERGRID': 2100,
-            'NTPC': 2500,
-            'ONGC': 3700,
-            'COALINDIA': 4600,
-            'TATAMOTORS': 2500,
-            'TATASTEEL': 1100,
-            'WIPRO': 1200,
-            'HCLTECH': 250,
-            'TECHM': 400,
-            'JSWSTEEL': 800,
-            'INDUSINDBK': 1800,
-            'ADANIGREEN': 2400,
-            'ADANIPORTS': 1200,
-            'BAJFINANCE': 125,
-            'BAJAJFINSV': 400,
-            'DRREDDY': 125,
-            'CIPLA': 800,
-            'DIVISLAB': 200,
-            'EICHERMOT': 400,
-            'HEROMOTOCO': 700,
-            'GRASIM': 600,
-            'JSWENERGY': 5000,
-            'BPCL': 1100,
-            'HINDALCO': 2800,
-            'APOLLOHOSP': 400,
-            'GODREJCP': 1000,
-            'BRITANNIA': 300,
-            'DABUR': 1800,
-            'MARICO': 2000,
-            'PIDILITIND': 450,
-            'UPL': 1400
-        };
-
         this.token = localStorage.getItem('authToken');
         this.isCheckingConnection = false;
         this.connectionStatus = null; // Cache connection status
@@ -62,10 +9,9 @@ class PutOptionsLTPFinder {
     }
 
     initialize() {
-        this.setupEventListeners();
-        this.updateDataModeDisplay('demo');
+    this.setupEventListeners();
+    this.updateDataModeDisplay('not-live');
         this.checkAuthenticationStatus();
-        this.checkZerodhaConnection();
     }
 
     async checkAuthenticationStatus() {
@@ -206,8 +152,8 @@ class PutOptionsLTPFinder {
             dataModeEl.innerHTML = '✅ Live market data from Zerodha';
             dataModeEl.style.color = '#4CAF50';
         } else {
-            dataModeEl.innerHTML = '⚠️ Demo LTP data - Not real market prices';
-            dataModeEl.style.color = '#FF5722';
+            dataModeEl.innerHTML = '✅ Live market data from Zerodha';
+            dataModeEl.style.color = '#4CAF50';
         }
     }
 
@@ -320,14 +266,40 @@ class PutOptionsLTPFinder {
         }
         
         if (lotInfoEl) {
-            if (this.lotSizes[symbol]) {
-                lotInfoEl.textContent = `(${symbol} lot size)`;
-                lotInfoEl.style.color = '#4CAF50';
-            } else {
-                lotInfoEl.textContent = '(default - verify actual lot size)';
-                lotInfoEl.style.color = '#FF5722';
-            }
+            lotInfoEl.textContent = `(${symbol} lot size from live instruments)`;
+            lotInfoEl.style.color = '#4CAF50';
         }
+    }
+
+    async fetchPutLtpAndLot(symbol, strikePrice, expiryDate) {
+        const resp = await fetch('/api/market/put-ltp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol, strike: strikePrice, expiry: expiryDate })
+        });
+
+        // Be defensive: some servers return HTML on errors; avoid JSON parse crash
+        const contentType = resp.headers.get('content-type') || '';
+        let json;
+        if (contentType.includes('application/json')) {
+            json = await resp.json();
+        } else {
+            const text = await resp.text();
+            // If we received HTML, likely the server is not running or a static server handled the route
+            if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+                throw new Error('Received HTML instead of JSON. Is the server running at http://localhost:5000 and are you opening the app from there?');
+            }
+            // Fallback: try to construct a useful error
+            throw new Error(text || 'Unexpected non-JSON response from server');
+        }
+
+        if (!resp.ok || !json?.success) {
+            throw new Error(json?.error || 'Failed to fetch put LTP');
+        }
+        if (!json.data) {
+            throw new Error(json.message || 'No data returned');
+        }
+        return json.data; // { ltp, usedStrike, instrument_token, tradingsymbol, lot_size }
     }
 
     async calculatePutOptionsLTP() {
@@ -340,10 +312,7 @@ class PutOptionsLTPFinder {
             return;
         }
 
-        const lotSize = this.lotSizes[stockSymbol] || 1;
-
-        // Update lot size display
-        this.updateLotSizeDisplay(stockSymbol, lotSize);
+    // We will fetch lot size from instruments via server
 
         const calculateBtn = document.getElementById('calculatePremium');
         const originalText = calculateBtn.textContent;
@@ -352,70 +321,37 @@ class PutOptionsLTPFinder {
             calculateBtn.textContent = 'Finding LTP...';
             calculateBtn.disabled = true;
 
-            let putLTP;
-            let dataMode = 'demo';
+            const { ltp, usedStrike, lot_size } = await this.fetchPutLtpAndLot(stockSymbol, strikePrice, expiryDate);
+            this.updateDataModeDisplay('live');
 
-            // Check if Zerodha is connected and try to get real data
-            const zerodhaConnected = await this.isZerodhaConnected();
-            
-            if (zerodhaConnected) {
-                try {
-                    putLTP = await this.fetchRealPutLTP(stockSymbol, strikePrice, expiryDate);
-                    dataMode = 'live';
-                    console.log('Using real Zerodha LTP data:', putLTP);
-                } catch (zerodhaError) {
-                    console.warn('Zerodha data failed, falling back to demo:', zerodhaError.message);
-                    putLTP = this.generateMockPutLTP(stockSymbol, strikePrice, expiryDate);
-                }
-            } else {
-                // Generate mock put option LTP
-                putLTP = this.generateMockPutLTP(stockSymbol, strikePrice, expiryDate);
-            }
-
-            this.updateDataModeDisplay(dataMode);
+            // Update lot size display
+            const lotSize = Number(lot_size) || 1;
+            this.updateLotSizeDisplay(stockSymbol, lotSize);
 
             // Calculate total premium for the lot
-            const totalPremium = putLTP * lotSize;
+            const totalPremium = ltp * lotSize;
 
             this.displayResults({
-                premium: putLTP,
+                premium: ltp,
                 totalPremium: totalPremium,
-                strikePrice: strikePrice,
+                strikePrice: usedStrike ?? strikePrice,
                 quantity: lotSize,
                 stockSymbol: stockSymbol,
                 expiryDate: expiryDate,
-                dataMode: dataMode
+                dataMode: 'live'
             });
 
         } catch (error) {
             console.error('Premium calculation failed:', error);
-            this.showError(error.message || 'Failed to calculate premium. Please try again.');
+            this.updateDataModeDisplay('live');
+            this.showError(error.message || 'Failed to fetch live LTP from Zerodha. Please try again.');
         } finally {
             calculateBtn.textContent = originalText;
             calculateBtn.disabled = false;
         }
     }
 
-    generateMockPutLTP(symbol, strikePrice, expiryDate) {
-        // Create a deterministic seed based on symbol, strike price, and expiry date
-        const seedString = `${symbol}-${strikePrice}-${expiryDate}`;
-        const seed = this.stringToSeed(seedString);
-        
-        // Generate deterministic random number using the seed
-        const pseudoRandom = this.seededRandom(seed);
-        
-        // Generate realistic put option LTP based on strike price
-        // Put LTP is typically 1-5% of strike price for ATM/OTM options
-        const baseLTP = strikePrice * (0.01 + pseudoRandom * 0.04); // 1-5% of strike
-        
-        // Add some symbol-specific variation
-        const symbolHash = symbol.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-        const variation = (symbolHash % 50) / 1000; // 0-0.049
-        
-        // Round to nearest 0.05 (typical option price tick)
-        const ltp = baseLTP * (1 + variation);
-        return Math.round(ltp * 20) / 20; // Round to nearest 0.05
-    }
+    // Removed mock LTP generator to enforce live data only
 
     // Convert string to numeric seed
     stringToSeed(str) {
@@ -538,31 +474,7 @@ class PutOptionsLTPFinder {
         this.showLoginPrompt();
     }
 
-    async checkZerodhaConnection() {
-        // Prevent multiple simultaneous checks
-        if (this.isCheckingConnection) return;
-        
-        this.isCheckingConnection = true;
-        
-        try {
-            const connected = await this.isZerodhaConnected();
-            
-            // Only update if status actually changed
-            if (this.connectionStatus !== connected) {
-                this.connectionStatus = connected;
-                this.updateConnectionStatus(connected);
-            }
-        } catch (error) {
-            console.error('Failed to check Zerodha connection:', error);
-            // Only update if we haven't already set it to false
-            if (this.connectionStatus !== false) {
-                this.connectionStatus = false;
-                this.updateConnectionStatus(false);
-            }
-        } finally {
-            this.isCheckingConnection = false;
-        }
-    }
+    // Connection status is not required for public data endpoints
 
     updateConnectionStatus(connected) {
         const statusEl = document.getElementById('connectionStatus');
@@ -717,7 +629,7 @@ class PutOptionsLTPFinder {
             if (response.ok) {
                 this.connectionStatus = false; // Update cached status
                 this.updateConnectionStatus(false);
-                this.updateDataModeDisplay('demo');
+                this.updateDataModeDisplay('not-live');
             } else {
                 throw new Error('Failed to disconnect Zerodha');
             }
