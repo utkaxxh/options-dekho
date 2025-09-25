@@ -34,11 +34,19 @@ export default function OptionWatchlist() {
     })
   }, [supabase])
 
-  const canFetch = useMemo(() => rows.length > 0 && userId, [rows, userId])
+  const hasCompleteRow = useMemo(
+    () => rows.some(r => r.symbol && r.strike && r.expiry),
+    [rows]
+  )
+  const canFetch = useMemo(
+    () => hasCompleteRow && !!userId,
+    [hasCompleteRow, userId]
+  )
 
   const addRow = () => {
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
     setRows(prev => ([...prev, { id, symbol: '', strike: '', expiry: '' }]))
+    // No direct DOM focus here to keep SSR/CSR simple; user will see the new row at bottom
   }
 
   const removeRow = (id: string) => {
@@ -55,21 +63,28 @@ export default function OptionWatchlist() {
   }
 
   const resolveAll = async () => {
-    const resolved: Row[] = []
-    for (const r of rows) {
-      if (!r.symbol || !r.strike || !r.expiry) continue
-      try {
-        const resp = await axios.get('/api/kite/instruments', {
-          params: { user_id: userId, symbol: r.symbol, strike: r.strike, expiry: r.expiry }
-        })
-        const inst = resp.data.instrument
-        resolved.push({ ...r, tradingsymbol: inst.tradingsymbol, instrument_token: inst.instrument_token })
-      } catch (e: any) {
-        setError(e.response?.data?.error || 'Failed to resolve instrument')
-      }
-    }
-    setRows(resolved)
-    return resolved
+    // Resolve only complete rows and preserve incomplete rows as-is
+    const updated: Row[] = await Promise.all(
+      rows.map(async (r) => {
+        if (!r.symbol || !r.strike || !r.expiry) return r
+        try {
+          const resp = await axios.get('/api/kite/instruments', {
+            params: { user_id: userId, symbol: r.symbol, strike: r.strike, expiry: r.expiry }
+          })
+          const inst = resp.data.instrument
+          if (inst?.tradingsymbol && inst?.instrument_token != null) {
+            return { ...r, tradingsymbol: inst.tradingsymbol, instrument_token: inst.instrument_token }
+          }
+          return r
+        } catch (e: any) {
+          // Keep the row and surface the error, but don't drop it
+          setError(e.response?.data?.error || 'Failed to resolve instrument')
+          return r
+        }
+      })
+    )
+    setRows(updated)
+    return updated
   }
 
   const fetchQuotes = async () => {
@@ -82,7 +97,7 @@ export default function OptionWatchlist() {
       const targets = withTsym ? rows : await resolveAll()
       const instruments = targets.filter(t => t.tradingsymbol).map(t => `NFO:${t.tradingsymbol}`)
       if (instruments.length === 0) return
-      const url = new URL('/api/kite/quotes', window.location.origin)
+  const url = new URL('/api/kite/quotes', window.location.origin)
       url.searchParams.append('user_id', userId)
       for (const ins of instruments) url.searchParams.append('instruments', ins)
       const resp = await axios.get(url.toString())
@@ -122,7 +137,7 @@ export default function OptionWatchlist() {
             <input type="checkbox" className="h-4 w-4 text-blue-600" checked={auto} onChange={e => setAuto(e.target.checked)} />
             <span className="ml-2 text-sm text-gray-700">Auto-refresh (10s)</span>
           </label>
-          <button type="button" onClick={fetchQuotes} disabled={loading || !userId || rows.length === 0} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50">Refresh</button>
+          <button type="button" onClick={fetchQuotes} disabled={loading || !userId || !hasCompleteRow} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50">Refresh</button>
           <button type="button" onClick={addRow} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm">Add row</button>
         </div>
       </div>
