@@ -134,6 +134,9 @@ export default function OptionTracker() {
       if (response.data.loginUrl) {
         console.log('Opening Kite login popup:', response.data.loginUrl)
         
+        // Clear any previous auth results
+        localStorage.removeItem('kite_auth_result')
+        
         // Open login URL in new window
         const popup = window.open(response.data.loginUrl, 'kiteLogin', 'width=600,height=600,scrollbars=yes,resizable=yes')
         
@@ -143,49 +146,91 @@ export default function OptionTracker() {
           return
         }
 
-        // Listen for popup messages
-        const checkClosed = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(checkClosed)
-            window.removeEventListener('message', messageListener)
-            setError('Authentication was cancelled. Please try again.')
-            setLoading(false)
-          }
-        }, 1000)
+        let authProcessed = false
 
-        // Listen for messages from popup
+        // Method 1: Listen for postMessage
         const messageListener = (event: MessageEvent) => {
-          console.log('Received message from popup:', event)
+          console.log('Received message from popup:', event.data)
           
-          // Accept messages from any origin for broader compatibility
-          // In production, you might want to be more restrictive
+          if (authProcessed) return // Prevent double processing
           
           if (event.data.type === 'KITE_AUTH_SUCCESS' && event.data.requestToken) {
-            console.log('Authentication successful, token received:', event.data.requestToken)
-            clearInterval(checkClosed)
-            popup?.close()
-            window.removeEventListener('message', messageListener)
-            
-            // Automatically generate access token
+            console.log('Authentication successful via postMessage, token received:', event.data.requestToken)
+            authProcessed = true
+            cleanup()
             handleRequestToken(event.data.requestToken)
           } else if (event.data.type === 'KITE_AUTH_ERROR') {
-            console.log('Authentication error:', event.data.error)
-            clearInterval(checkClosed)
-            popup?.close()
-            window.removeEventListener('message', messageListener)
+            console.log('Authentication error via postMessage:', event.data.error)
+            authProcessed = true
+            cleanup()
             setError(event.data.error || 'Authentication failed')
             setLoading(false)
           }
         }
 
+        // Method 2: Poll localStorage as fallback
+        const pollInterval = setInterval(() => {
+          const authResult = localStorage.getItem('kite_auth_result')
+          if (authResult && !authProcessed) {
+            try {
+              const result = JSON.parse(authResult)
+              console.log('Found auth result in localStorage:', result)
+              
+              // Check if result is recent (within last 2 minutes)
+              const isRecent = Date.now() - result.timestamp < 120000
+              if (!isRecent) {
+                console.log('Auth result too old, ignoring')
+                return
+              }
+
+              authProcessed = true
+              localStorage.removeItem('kite_auth_result') // Clean up
+              cleanup()
+
+              if (result.type === 'KITE_AUTH_SUCCESS' && result.requestToken) {
+                console.log('Authentication successful via localStorage, token received:', result.requestToken)
+                handleRequestToken(result.requestToken)
+              } else if (result.type === 'KITE_AUTH_ERROR') {
+                console.log('Authentication error via localStorage:', result.error)
+                setError(result.error || 'Authentication failed')
+                setLoading(false)
+              }
+            } catch (e) {
+              console.log('Failed to parse auth result:', e)
+            }
+          }
+        }, 1000) // Check every second
+
+        // Check if popup was closed manually
+        const checkClosed = setInterval(() => {
+          if (popup?.closed && !authProcessed) {
+            console.log('Popup closed manually')
+            authProcessed = true
+            cleanup()
+            setError('Authentication was cancelled. Please try again.')
+            setLoading(false)
+          }
+        }, 1000)
+
+        // Cleanup function
+        const cleanup = () => {
+          clearInterval(pollInterval)
+          clearInterval(checkClosed)
+          window.removeEventListener('message', messageListener)
+          if (popup && !popup.closed) {
+            popup.close()
+          }
+        }
+
+        // Set up event listener
         window.addEventListener('message', messageListener)
         
-        // Set a maximum timeout for the entire process
+        // Set maximum timeout for the entire process
         setTimeout(() => {
-          if (!popup.closed) {
-            popup.close()
-            clearInterval(checkClosed)
-            window.removeEventListener('message', messageListener)
+          if (!authProcessed) {
+            console.log('Authentication timeout')
+            authProcessed = true
+            cleanup()
             setError('Authentication timeout. Please try again.')
             setLoading(false)
           }
@@ -214,11 +259,19 @@ export default function OptionTracker() {
 
       if (response.data.access_token) {
         console.log('Access token generated successfully')
+        
+        // Update all authentication states
         setHasValidToken(true)
+        setTokenExpiringSoon(false) // Reset expiry warning
         setShowTokenInput(false)
         setRequestToken('')
         setError('')
         setLoading(false)
+        
+        // Also check token status to update the UI properly
+        setTimeout(() => {
+          checkTokenStatus()
+        }, 1000)
       } else {
         throw new Error('No access token received from server')
       }
@@ -226,6 +279,9 @@ export default function OptionTracker() {
       console.error('Token generation failed:', err)
       setError(err.response?.data?.error || 'Failed to generate access token')
       setLoading(false)
+      
+      // If token generation fails, reset auth state
+      setHasValidToken(false)
     }
   }
 
