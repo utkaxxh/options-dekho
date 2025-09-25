@@ -722,9 +722,9 @@ export default function OptionTracker() {
             </label>
             <button
               onClick={fetchOptionData}
-              disabled={loading || !hasValidToken || useWebSocket}
+              disabled={loading || !hasValidToken}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium disabled:opacity-50"
-              title={useWebSocket ? 'Disable WebSocket to use REST fetch' : 'Fetch via REST'}
+              title={useWebSocket ? 'Fetch once via REST (WebSocket streaming is active)' : 'Fetch via REST'}
             >
               {loading ? 'Loading...' : 'Get LTP'}
             </button>
