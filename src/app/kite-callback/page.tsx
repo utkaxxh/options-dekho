@@ -4,6 +4,18 @@ import { useEffect } from 'react'
 
 export default function KiteCallback() {
   useEffect(() => {
+    // Handle unhandled promise rejections from browser extensions
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (event.reason?.message?.includes('message channel closed') || 
+          event.reason?.message?.includes('listener indicated an asynchronous response')) {
+        // Suppress browser extension errors that don't affect our functionality
+        event.preventDefault()
+        console.log('Suppressed browser extension error:', event.reason?.message)
+      }
+    }
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection)
+
     console.log('Kite callback page loaded')
     console.log('Current URL:', window.location.href)
     console.log('window.opener exists:', !!window.opener)
@@ -18,6 +30,22 @@ export default function KiteCallback() {
     // Create a unique key for this authentication session
     const authSessionKey = 'kite_auth_result'
 
+    // Function to send message with error handling
+    const sendMessageSafely = (message: any) => {
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(message, '*')
+          console.log('Message sent via postMessage:', message.type)
+          return true
+        }
+      } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : 'Unknown error'
+        console.log('postMessage failed (likely browser extension interference):', errorMsg)
+        return false
+      }
+      return false
+    }
+
     if (error || status === 'error') {
       console.log('Authentication error detected:', error)
       
@@ -27,19 +55,16 @@ export default function KiteCallback() {
         timestamp: Date.now()
       }
 
-      // Method 1: Try postMessage to parent window
+      // Try postMessage first
+      const messageSent = sendMessageSafely(errorResult)
+      
+      // Always use localStorage as backup
       try {
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(errorResult, '*')
-          console.log('Error message sent via postMessage')
-        }
+        localStorage.setItem(authSessionKey, JSON.stringify(errorResult))
+        console.log('Error result stored in localStorage')
       } catch (e) {
-        console.log('postMessage failed:', e)
+        console.log('Failed to store in localStorage:', e)
       }
-
-      // Method 2: Use localStorage as fallback
-      localStorage.setItem(authSessionKey, JSON.stringify(errorResult))
-      console.log('Error result stored in localStorage')
 
     } else if (requestToken) {
       console.log('Request token found:', requestToken)
@@ -50,21 +75,16 @@ export default function KiteCallback() {
         timestamp: Date.now()
       }
 
-      // Method 1: Try postMessage to parent window
+      // Try postMessage first
+      const messageSent = sendMessageSafely(successResult)
+      
+      // Always use localStorage as backup
       try {
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(successResult, '*')
-          console.log('Success message sent via postMessage')
-        } else {
-          console.log('window.opener is null or closed, using localStorage fallback')
-        }
+        localStorage.setItem(authSessionKey, JSON.stringify(successResult))
+        console.log('Success result stored in localStorage')
       } catch (e) {
-        console.log('postMessage failed:', e)
+        console.log('Failed to store in localStorage:', e)
       }
-
-      // Method 2: Use localStorage as fallback (always set this)
-      localStorage.setItem(authSessionKey, JSON.stringify(successResult))
-      console.log('Success result stored in localStorage')
 
     } else {
       console.log('No request token found in URL')
@@ -75,24 +95,32 @@ export default function KiteCallback() {
         timestamp: Date.now()
       }
 
-      // Method 1: Try postMessage
+      // Try postMessage first
+      const messageSent = sendMessageSafely(errorResult)
+      
+      // Always use localStorage as backup
       try {
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(errorResult, '*')
-        }
+        localStorage.setItem(authSessionKey, JSON.stringify(errorResult))
+        console.log('Error result stored in localStorage')
       } catch (e) {
-        console.log('postMessage failed:', e)
+        console.log('Failed to store in localStorage:', e)
       }
-
-      // Method 2: localStorage fallback
-      localStorage.setItem(authSessionKey, JSON.stringify(errorResult))
     }
 
     // Close the popup after a delay
     setTimeout(() => {
       console.log('Closing popup window')
-      window.close()
+      try {
+        window.close()
+      } catch (e) {
+        console.log('Failed to close window:', e)
+      }
     }, 3000) // 3 seconds to ensure message is processed
+
+    // Cleanup function
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+    }
   }, [])
 
   return (
