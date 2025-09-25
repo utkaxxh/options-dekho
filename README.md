@@ -4,20 +4,21 @@ A full-stack web application for tracking real-time Put Option Last Traded Price
 
 ## Features
 
-- **User Authentication**: Secure login/signup using Supabase Auth
-- **Real-time Data**: Live Put Option prices updated every 10 seconds
-- **Dynamic Symbol Generation**: Automatic trading symbol construction from user input
-- **Market Depth**: Display bid/ask prices with quantities
-- **Auto-refresh**: Configurable automatic data updates
-- **Responsive Design**: Works on desktop and mobile devices
+- Supabase Auth (email/password)
+- Automated Kite authentication in a popup; parent window stays authenticated and popup closes automatically
+- Real-time Put Option prices updated every 10 seconds
+- Trading symbol builder (symbol + YY + MMM + STRIKE + PE)
+- Market depth (best bid/ask with quantities)
+- Expiry date UX: dropdown with the last Tuesday of current, next, and following months
+- Resilient token lifecycle: stored in Supabase with daily expiry handling
 
 ## Technology Stack
 
-- **Frontend**: Next.js 15 with TypeScript
-- **Styling**: Tailwind CSS
-- **Authentication**: Supabase Auth
-- **API Integration**: Zerodha Kite API
-- **Real-time Updates**: Client-side polling
+- Frontend: Next.js 15 (App Router) + TypeScript + React 18
+- Styling: Tailwind CSS
+- Authentication: Supabase Auth (singleton client)
+- Broker API: Zerodha Kite (OAuth v3 + Quote)
+- Updates: Client-side polling
 
 ## Setup Instructions
 
@@ -45,6 +46,8 @@ Create a `.env.local` file in the root directory:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+KITE_API_KEY=your_kite_api_key
+KITE_API_SECRET=your_kite_api_secret
 ```
 
 ### 4. Supabase Setup
@@ -84,7 +87,10 @@ CREATE INDEX idx_user_kite_tokens_expires_at ON user_kite_tokens(expires_at);
 
 1. Register at [Kite Connect](https://kite.trade/docs/connect/v3/)
 2. Create a new app to get API Key and API Secret
-3. You'll enter these credentials in the app interface
+3. Set the Redirect URL to your deployment origin with path /kite-callback
+   - Local: http://localhost:3000/kite-callback
+   - Vercel: https://<your-domain>/kite-callback
+4. Add API Key and Secret to environment variables (see above)
 
 ### 6. Run the Application
 
@@ -116,10 +122,10 @@ git push -u origin main
 1. Visit [vercel.com](https://vercel.com) and sign in with GitHub
 2. Import your repository: `https://github.com/utkaxxh/options-dekho`
 3. Configure environment variables in Vercel dashboard:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` 
-   - `KITE_API_KEY`
-   - `KITE_API_SECRET`
+   - NEXT_PUBLIC_SUPABASE_URL
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - KITE_API_KEY
+   - KITE_API_SECRET
 4. Deploy the application
 
 The app will be live at your Vercel URL (e.g., `https://options-dekho.vercel.app`)
@@ -137,29 +143,32 @@ KITE_API_SECRET=your_kite_api_secret
 
 ## Usage
 
-1. **Sign Up/Login**: Create an account or login using your email
-2. **Configure Kite API**: Enter your Kite API Key and Secret
-3. **Authenticate**: Complete Kite login to get request token
-4. **Track Options**: Enter stock symbol, strike price, and expiry date
-5. **View Real-time Data**: See live LTP, bid/ask prices, volume, and OI
+1. Sign Up/Login: Create an account or login using your email
+2. Configure Kite API: Add KITE_API_KEY and KITE_API_SECRET to environment variables
+3. Authenticate: Click “Connect Kite”; a popup will handle login and close automatically
+4. Track Options: Enter stock symbol, strike price, and expiry date (choose from the last-Tuesday dropdown)
+5. View Real-time Data: See live LTP, bid/ask prices, and more
 
 ## Trading Symbol Format
 
 The app automatically generates trading symbols using this format:
-- `SYMBOL + YY + MMM + STRIKE + PE`
-- Example: `RELIANCE24OCT3000PE` for RELIANCE Oct 2024 3000 Put
+- SYMBOL + YY + MMM + STRIKE + PE
+- Example: RELIANCE24OCT3000PE for RELIANCE Oct 2024 3000 Put
 
 ## API Endpoints
 
-- `POST /api/kite/token` - Generate access token from request token
-- `GET /api/kite/quote` - Fetch real-time option quotes
+- POST /api/kite/login-url — Returns a Kite login URL using the correct origin and /kite-callback redirect
+- POST /api/kite/token — Exchanges request_token for access_token and stores it (per-user) in Supabase
+- GET /api/kite/token-status — Returns hasValidToken, expiringSoon, and accessToken (when valid)
+- DELETE /api/kite/token-status — Deletes the stored token for the current user
+- GET /api/kite/quote — Fetches real-time option quotes (validates input, has timeouts, maps errors)
 
 ## Important Notes
 
-- **Market Hours**: Kite API only provides data during market hours
-- **Rate Limits**: Be mindful of API rate limits when using auto-refresh
-- **Token Expiry**: Access tokens expire daily and need regeneration
-- **Paper Trading**: This is for informational purposes only
+- Market Hours: Kite APIs are mostly useful during market hours
+- Rate Limits: Be mindful of Kite API rate limits when using auto-refresh
+- Token Expiry: Access tokens expire daily; the app will prompt re-auth when needed
+- Redirect URL: The configured redirect in Kite developer console must exactly match your deployed /kite-callback URL (protocol + host + path)
 
 ## Contributing
 
