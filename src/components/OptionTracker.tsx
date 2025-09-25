@@ -33,6 +33,51 @@ export default function OptionTracker() {
   const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
     'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
+  // Function to get the last Tuesday of a given month
+  const getLastTuesday = (year: number, month: number): Date => {
+    const lastDay = new Date(year, month + 1, 0) // Last day of the month
+    const lastTuesday = new Date(lastDay)
+    
+    // Get the day of the week (0 = Sunday, 1 = Monday, ..., 2 = Tuesday)
+    const dayOfWeek = lastDay.getDay()
+    
+    // Calculate days to subtract to get to Tuesday (2)
+    const daysToSubtract = dayOfWeek >= 2 ? dayOfWeek - 2 : dayOfWeek + 5
+    
+    lastTuesday.setDate(lastDay.getDate() - daysToSubtract)
+    return lastTuesday
+  }
+
+  // Function to get expiry options for dropdown
+  const getExpiryOptions = () => {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth()
+    
+    const expiryOptions = []
+    
+    // Current month, next month, and month after that
+    for (let i = 0; i < 3; i++) {
+      const targetMonth = (currentMonth + i) % 12
+      const targetYear = currentMonth + i >= 12 ? currentYear + 1 : currentYear
+      
+      const lastTuesday = getLastTuesday(targetYear, targetMonth)
+      
+      // Only include if the expiry date hasn't passed yet
+      if (lastTuesday >= now || i > 0) {
+        const dateString = lastTuesday.toISOString().split('T')[0]
+        const displayString = `${lastTuesday.getDate()} ${monthNames[targetMonth]} ${targetYear}`
+        
+        expiryOptions.push({
+          value: dateString,
+          label: displayString
+        })
+      }
+    }
+    
+    return expiryOptions
+  }
+
   // Get user ID on component mount
   useEffect(() => {
     const getUser = async () => {
@@ -88,13 +133,61 @@ export default function OptionTracker() {
       const response = await axios.get('/api/kite/login-url')
       if (response.data.loginUrl) {
         // Open login URL in new window
-        window.open(response.data.loginUrl, '_blank', 'width=600,height=600')
-        setShowTokenInput(true)
-        setError('Please complete the login in the popup window and copy the request token from the URL')
+        const popup = window.open(response.data.loginUrl, 'kiteLogin', 'width=600,height=600,scrollbars=yes,resizable=yes')
+        
+        // Listen for popup messages
+        const checkClosed = setInterval(() => {
+          if (popup?.closed) {
+            clearInterval(checkClosed)
+            setError('Authentication was cancelled. Please try again.')
+            setLoading(false)
+          }
+        }, 1000)
+
+        // Listen for messages from popup
+        const messageListener = (event: MessageEvent) => {
+          if (event.origin !== window.location.origin) return
+          
+          if (event.data.type === 'KITE_AUTH_SUCCESS' && event.data.requestToken) {
+            clearInterval(checkClosed)
+            popup?.close()
+            window.removeEventListener('message', messageListener)
+            
+            // Automatically generate access token
+            handleRequestToken(event.data.requestToken)
+          } else if (event.data.type === 'KITE_AUTH_ERROR') {
+            clearInterval(checkClosed)
+            popup?.close()
+            window.removeEventListener('message', messageListener)
+            setError(event.data.error || 'Authentication failed')
+            setLoading(false)
+          }
+        }
+
+        window.addEventListener('message', messageListener)
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to initiate Kite login')
-    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRequestToken = async (requestToken: string) => {
+    try {
+      const response = await axios.post('/api/kite/token', {
+        request_token: requestToken,
+        user_id: userId
+      })
+
+      if (response.data.access_token) {
+        setHasValidToken(true)
+        setShowTokenInput(false)
+        setRequestToken('')
+        setError('')
+        setLoading(false)
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to generate access token')
       setLoading(false)
     }
   }
@@ -285,12 +378,18 @@ export default function OptionTracker() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Expiry Date
             </label>
-            <input
-              type="date"
+            <select
               value={expiry}
               onChange={(e) => setExpiry(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+            >
+              <option value="">Select expiry date</option>
+              {getExpiryOptions().map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         
