@@ -56,13 +56,21 @@ export async function GET(request: NextRequest) {
 
     console.log(`[QUOTE API] Fetching quote for ${instruments} (user: ${user_id})`)
 
+    const api_key = process.env.KITE_API_KEY
+    if (!api_key) {
+      return NextResponse.json(
+        { error: 'Server missing KITE_API_KEY' },
+        { status: 500 }
+      )
+    }
+
     // Fetch quote from Kite API with timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
     const response = await fetch(`https://api.kite.trade/quote?i=${encodeURIComponent(instruments)}`, {
       headers: {
-        'Authorization': `token ${access_token}`,
+        'Authorization': `token ${api_key}:${access_token}`,
         'X-Kite-Version': '3'
       },
       signal: controller.signal
