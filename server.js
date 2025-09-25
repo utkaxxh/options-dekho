@@ -1,312 +1,176 @@
 const express = require('express');
 const cors = require('cors');
-const crypto = require('crypto');
 const fetch = require('node-fetch');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Zerodha API Configuration from environment variables
 const KITE_API_KEY = process.env.KITE_API_KEY;
-const KITE_API_SECRET = process.env.KITE_API_SECRET;
-const KITE_BASE_URL = 'https://api.kite.trade';
+const KITE_ACCESS_TOKEN = process.env.KITE_ACCESS_TOKEN;
 
-// In-memory session storage (use Redis in production)
-const userSessions = new Map();
+async function kiteApiCall(endpoint, options = {}) {
+  const { method = 'GET', body = null, isCSV = false } = options;
+  
+  if (!KITE_API_KEY || !KITE_ACCESS_TOKEN) {
+    throw new Error('Kite API credentials not configured');
+  }
 
-// Helper function to generate checksum
-function generateChecksum(apiKey, requestToken, apiSecret) {
-    const data = apiKey + requestToken + apiSecret;
-    return crypto.createHash('sha256').update(data).digest('hex');
+  const headers = {
+    Authorization: `token ${KITE_API_KEY}:${KITE_ACCESS_TOKEN}`,
+    'X-Kite-Version': '3'
+  };
+
+  const fetchOpts = { method, headers };
+  if (body && method !== 'GET') {
+    if (!isCSV) {
+      headers['Content-Type'] = 'application/json';
+      fetchOpts.body = JSON.stringify(body);
+    }
+  }
+
+  const resp = await fetch(endpoint, fetchOpts);
+  const text = await resp.text();
+
+  if (!isCSV) {
+    try {
+      const parsed = JSON.parse(text);
+      if (!resp.ok) {
+        throw new Error(parsed.message || `API error ${resp.status}`);
+      }
+      return parsed;
+    } catch (e) {
+      if (!resp.ok) {
+        throw new Error(`API error ${resp.status}: ${text}`);
+      }
+      throw e;
+    }
+  }
+
+  if (!resp.ok) {
+    throw new Error(`API error ${resp.status}`);
+  }
+
+  return text;
 }
 
-// Helper function to make authenticated API calls to Kite
-async function makeKiteAPICall(accessToken, endpoint, method = 'GET', data = null) {
-    const url = `${KITE_BASE_URL}${endpoint}`;
-    const headers = {
-        'Authorization': `token ${KITE_API_KEY}:${accessToken}`,
-        'X-Kite-Version': '3',
-        'Content-Type': 'application/json'
-    };
-
-    const config = {
-        method: method,
-        headers: headers
-    };
-
-    if (data && method !== 'GET') {
-        config.body = JSON.stringify(data);
-    }
-
-    try {
-        const response = await fetch(url, config);
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(`API Error: ${response.status} - ${result.message || response.statusText}`);
-        }
-
-        if (result.status !== 'success') {
-            throw new Error(`Kite API Error: ${result.message || 'Unknown error'}`);
-        }
-
-        return result.data;
-    } catch (error) {
-        console.error('Kite API call failed:', error);
-        throw error;
-    }
-}
-
-// Routes
-
-// Get Kite login URL
-app.get('/api/kite/login-url', (req, res) => {
-    if (!KITE_API_KEY) {
-        return res.status(500).json({ 
-            success: false, 
-            error: 'Kite API key not configured. Please set KITE_API_KEY in environment variables.' 
-        });
-    }
-
-    const loginUrl = `https://kite.zerodha.com/connect/login?api_key=${KITE_API_KEY}&v=3`;
-    res.json({ 
-        success: true, 
-        loginUrl,
-        message: 'Complete login and provide the request token from the redirect URL' 
-    });
-});
-
-// Exchange request token for access token
-app.post('/api/kite/access-token', async (req, res) => {
-    try {
-        const { requestToken } = req.body;
-
-        if (!requestToken) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Request token is required' 
-            });
-        }
-
-        if (!KITE_API_SECRET) {
-            return res.status(500).json({ 
-                success: false, 
-                error: 'Kite API secret not configured. Please set KITE_API_SECRET in environment variables.' 
-            });
-        }
-
-        const checksum = generateChecksum(KITE_API_KEY, requestToken, KITE_API_SECRET);
-        
-        const response = await fetch(`${KITE_BASE_URL}/session/token`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `api_key=${KITE_API_KEY}&request_token=${requestToken}&checksum=${checksum}`
-        });
-
-        const result = await response.json();
-
-        if (!response.ok || result.status !== 'success') {
-            throw new Error(result.message || 'Failed to generate access token');
-        }
-
-        const { access_token, user_id } = result.data;
-        
-        // Store session
-        const sessionId = crypto.randomUUID();
-        userSessions.set(sessionId, {
-            accessToken: access_token,
-            userId: user_id,
-            createdAt: new Date()
-        });
-
-        res.json({
-            success: true,
-            sessionId,
-            userId: user_id,
-            message: 'Successfully authenticated with Zerodha'
-        });
-
-    } catch (error) {
-        console.error('Token exchange failed:', error);
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Get user profile
-app.get('/api/kite/profile', async (req, res) => {
-    try {
-        const sessionId = req.headers['x-session-id'];
-        const session = userSessions.get(sessionId);
-
-        if (!session) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid or expired session'
-            });
-        }
-
-        const profile = await makeKiteAPICall(session.accessToken, '/user/profile');
-        res.json({ success: true, data: profile });
-
-    } catch (error) {
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Get Last Traded Price (LTP)
-app.post('/api/kite/ltp', async (req, res) => {
-    try {
-        const sessionId = req.headers['x-session-id'];
-        const session = userSessions.get(sessionId);
-
-        if (!session) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid or expired session'
-            });
-        }
-
-        const { instruments } = req.body;
-        
-        if (!instruments || !Array.isArray(instruments)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Instruments array is required'
-            });
-        }
-
-        const instrumentParams = instruments.join('&i=');
-        const ltp = await makeKiteAPICall(session.accessToken, `/quote/ltp?i=${instrumentParams}`);
-        
-        res.json({ success: true, data: ltp });
-
-    } catch (error) {
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Get quotes
-app.post('/api/kite/quotes', async (req, res) => {
-    try {
-        const sessionId = req.headers['x-session-id'];
-        const session = userSessions.get(sessionId);
-
-        if (!session) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid or expired session'
-            });
-        }
-
-        const { instruments } = req.body;
-        
-        if (!instruments || !Array.isArray(instruments)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Instruments array is required'
-            });
-        }
-
-        const instrumentParams = instruments.join('&i=');
-        const quotes = await makeKiteAPICall(session.accessToken, `/quote?i=${instrumentParams}`);
-        
-        res.json({ success: true, data: quotes });
-
-    } catch (error) {
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Search instruments
-app.get('/api/kite/instruments', async (req, res) => {
-    try {
-        const sessionId = req.headers['x-session-id'];
-        const session = userSessions.get(sessionId);
-
-        if (!session) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid or expired session'
-            });
-        }
-
-        const { search } = req.query;
-        
-        if (!search) {
-            return res.status(400).json({
-                success: false,
-                error: 'Search query is required'
-            });
-        }
-
-        const instruments = await makeKiteAPICall(session.accessToken, `/instruments?search=${encodeURIComponent(search)}`);
-        
-        res.json({ success: true, data: instruments });
-
-    } catch (error) {
-        res.status(400).json({
-            success: false,
-            error: error.message
-        });
-    }
-});
-
-// Logout
-app.post('/api/kite/logout', (req, res) => {
-    const sessionId = req.headers['x-session-id'];
+app.post('/api/put-ltp', async (req, res) => {
+  try {
+    const { symbol, strike, expiry } = req.body;
     
-    if (sessionId && userSessions.has(sessionId)) {
-        userSessions.delete(sessionId);
+    if (!symbol || !strike || !expiry) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'symbol, strike, and expiry are required' 
+      });
     }
-    
-    res.json({ 
-        success: true, 
-        message: 'Logged out successfully' 
+
+    const symbolUpper = symbol.toUpperCase().trim();
+    const strikePrice = Number(strike);
+    const expiryDate = expiry.trim();
+
+    const csv = await kiteApiCall('https://api.kite.trade/instruments/NFO', { 
+      method: 'GET', 
+      isCSV: true 
     });
+
+    const lines = csv.split('\n');
+    const headers = lines[0].split(',');
+    
+    const idxToken = headers.findIndex(h => h.trim() === 'instrument_token');
+    const idxName = headers.findIndex(h => h.trim() === 'name');
+    const idxExpiry = headers.findIndex(h => h.trim() === 'expiry');
+    const idxType = headers.findIndex(h => h.trim() === 'instrument_type');
+    const idxStrike = headers.findIndex(h => h.trim() === 'strike');
+    const idxTradingSymbol = headers.findIndex(h => h.trim() === 'tradingsymbol');
+    const idxLotSize = headers.findIndex(h => h.trim() === 'lot_size');
+
+    const matchingOptions = [];
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(',');
+      if (row.length <= Math.max(idxToken, idxName, idxExpiry, idxType, idxStrike)) continue;
+      
+      const name = (row[idxName] || '').trim();
+      const exp = (row[idxExpiry] || '').trim();
+      const type = (row[idxType] || '').trim();
+      const rowStrike = parseFloat(row[idxStrike]);
+      
+      if (name === symbolUpper && exp === expiryDate && type === 'PE') {
+        matchingOptions.push({
+          instrument_token: (row[idxToken] || '').trim(),
+          tradingsymbol: (row[idxTradingSymbol] || '').trim(),
+          strike: rowStrike,
+          lot_size: parseInt((row[idxLotSize] || '0').trim(), 10) || 0
+        });
+      }
+    }
+
+    if (matchingOptions.length === 0) {
+      return res.json({
+        success: false,
+        error: `No PUT options found for ${symbolUpper} expiring on ${expiryDate}`
+      });
+    }
+
+    matchingOptions.sort((a, b) => Math.abs(a.strike - strikePrice) - Math.abs(b.strike - strikePrice));
+    const bestMatch = matchingOptions[0];
+
+    const ltpData = await kiteApiCall('https://api.kite.trade/quote/ltp', {
+      method: 'POST',
+      body: { i: [bestMatch.instrument_token] }
+    });
+
+    const ltp = ltpData?.data?.[bestMatch.instrument_token]?.last_price || 0;
+
+    res.json({
+      success: true,
+      data: {
+        symbol: symbolUpper,
+        strike: bestMatch.strike,
+        expiry: expiryDate,
+        ltp: ltp,
+        lot_size: bestMatch.lot_size,
+        tradingsymbol: bestMatch.tradingsymbol,
+        total_premium: ltp * bestMatch.lot_size
+      }
+    });
+
+  } catch (error) {
+    console.error('Put LTP error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch PUT LTP'
+    });
+  }
 });
 
-// Health check
 app.get('/api/health', (req, res) => {
-    res.json({ 
-        success: true, 
-        message: 'Kite API server is running',
-        timestamp: new Date().toISOString(),
-        activeSessions: userSessions.size
-    });
+  res.json({
+    success: true,
+    message: 'Put LTP API is running',
+    timestamp: new Date().toISOString()
+  });
 });
 
-// Serve static files from public directory
 app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
+
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ success: false, error: 'API endpoint not found' });
+  } else {
     res.sendFile(__dirname + '/public/index.html');
+  }
 });
 
-// Start server
 app.listen(PORT, () => {
-    console.log(`🚀 Kite API server running on port ${PORT}`);
-    console.log(`📱 Frontend: http://localhost:${PORT}`);
-    console.log(`🔗 API Base: http://localhost:${PORT}/api`);
-    console.log(`🔑 API Key configured: ${!!KITE_API_KEY}`);
-    console.log(`🔐 API Secret configured: ${!!KITE_API_SECRET}`);
+  console.log(`Put LTP Server running on port ${PORT}`);
+  console.log(`Frontend: http://localhost:${PORT}`);
+  console.log(`Kite API Key configured: ${!!KITE_API_KEY}`);
+  console.log(`Kite Access Token configured: ${!!KITE_ACCESS_TOKEN}`);
 });
-
-module.exports = app;

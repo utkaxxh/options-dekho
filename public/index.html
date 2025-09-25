@@ -3,203 +3,284 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Options Dekho - Premium Calculator</title>
+    <title>Put LTP Finder</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
+        
         body {
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #fff;
+            padding: 20px;
         }
-
+        
         .container {
-            text-align: center;
-            max-width: 600px;
-            padding: 2rem;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
         }
-
-        .logo {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
+        
         h1 {
-            font-size: 3.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+            font-weight: 600;
         }
-
-        .subtitle {
-            font-size: 1.25rem;
-            color: rgba(255, 255, 255, 0.85);
-            margin-bottom: 3rem;
-            line-height: 1.6;
-            font-weight: 400;
+        
+        .form-group {
+            margin-bottom: 20px;
         }
-
-        .get-started-btn {
-            background: rgba(255, 255, 255, 0.95);
-            color: #4a5568;
-            padding: 1rem 2.5rem;
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        input[type="date"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             border: none;
-            border-radius: 50px;
-            font-size: 1.1rem;
+            border-radius: 6px;
+            font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-            text-decoration: none;
-            display: inline-block;
+            transition: transform 0.2s;
         }
-
-        .get-started-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-            background: rgba(255, 255, 255, 1);
+        
+        button:hover {
+            transform: translateY(-2px);
         }
-
-        .features {
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .result.show {
+            display: block;
+        }
+        
+        .result h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .result-item {
             display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-top: 4rem;
-            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
         }
-
-        .feature {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 15px;
-            padding: 1.5rem;
+        
+        .result-item:last-child {
+            border-top: 2px solid #ddd;
+            padding-top: 10px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        .error {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fee;
+            border: 1px solid #fcc;
+            border-radius: 6px;
+            color: #c66;
+            display: none;
+        }
+        
+        .error.show {
+            display: block;
+        }
+        
+        .status {
             text-align: center;
-            min-width: 150px;
-            transition: all 0.3s ease;
-        }
-
-        .feature:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateY(-5px);
-        }
-
-        .feature-icon {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .feature-title {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .feature-desc {
-            font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2.5rem;
-            }
-            
-            .subtitle {
-                font-size: 1.1rem;
-            }
-            
-            .features {
-                gap: 1rem;
-            }
-            
-            .feature {
-                min-width: 120px;
-                padding: 1rem;
-            }
-        }
-
-        /* Loading state */
-        .loading {
-            opacity: 0.7;
-            pointer-events: none;
-        }
-
-        .loading::after {
-            content: '';
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            margin-left: 10px;
-            border: 2px solid #4a5568;
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #e8f5e8;
+            border: 1px solid #c3e6c3;
+            border-radius: 6px;
+            color: #2d5016;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="logo">🎯</div>
-        <h1>Options Dekho</h1>
-        <p class="subtitle">Calculate premium earned from selling put options with real-time market data</p>
+        <h1>🎯 Put LTP Finder</h1>
         
-        <button class="get-started-btn" id="getStartedBtn">Get Started</button>
+        <div class="status">
+            Real-time PUT option LTP from Zerodha Kite API
+        </div>
         
-        <div class="features">
-            <div class="feature">
-                <div class="feature-icon">📊</div>
-                <div class="feature-title">Real-time Data</div>
-                <div class="feature-desc">Live market prices</div>
+        <form id="ltpForm">
+            <div class="form-group">
+                <label for="symbol">Stock Symbol:</label>
+                <input type="text" id="symbol" placeholder="e.g., NIFTY, BANKNIFTY, RELIANCE" required>
             </div>
-            <div class="feature">
-                <div class="feature-icon">🔐</div>
-                <div class="feature-title">Secure</div>
-                <div class="feature-desc">Protected accounts</div>
+            
+            <div class="form-group">
+                <label for="strike">Strike Price:</label>
+                <input type="number" id="strike" placeholder="e.g., 24000" step="0.01" required>
             </div>
-            <div class="feature">
-                <div class="feature-icon">⚡</div>
-                <div class="feature-title">Instant</div>
-                <div class="feature-desc">Quick calculations</div>
+            
+            <div class="form-group">
+                <label for="expiry">Expiry Date:</label>
+                <input type="date" id="expiry" required>
+            </div>
+            
+            <button type="submit" id="submitBtn">Get Put LTP</button>
+        </form>
+        
+        <div id="error" class="error"></div>
+        
+        <div id="result" class="result">
+            <h3>PUT Option Details</h3>
+            <div class="result-item">
+                <span>Symbol:</span>
+                <span id="resultSymbol"></span>
+            </div>
+            <div class="result-item">
+                <span>Strike Price:</span>
+                <span id="resultStrike"></span>
+            </div>
+            <div class="result-item">
+                <span>Expiry:</span>
+                <span id="resultExpiry"></span>
+            </div>
+            <div class="result-item">
+                <span>Trading Symbol:</span>
+                <span id="resultTradingSymbol"></span>
+            </div>
+            <div class="result-item">
+                <span>LTP (Per Share):</span>
+                <span id="resultLtp"></span>
+            </div>
+            <div class="result-item">
+                <span>Lot Size:</span>
+                <span id="resultLotSize"></span>
+            </div>
+            <div class="result-item">
+                <span>Total Premium (1 Lot):</span>
+                <span id="resultTotal"></span>
             </div>
         </div>
     </div>
 
     <script>
-        // Simple redirect to authentication system
-        const getStartedBtn = document.getElementById('getStartedBtn');
-        
-        getStartedBtn.addEventListener('click', () => {
-            // Add loading state
-            getStartedBtn.classList.add('loading');
-            getStartedBtn.textContent = 'Loading...';
+        document.getElementById('ltpForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
             
-            // Check if user is already logged in
-            const authToken = localStorage.getItem('authToken');
-            const userInfo = localStorage.getItem('userInfo');
+            const symbol = document.getElementById('symbol').value.trim();
+            const strike = document.getElementById('strike').value;
+            const expiry = document.getElementById('expiry').value;
             
-            if (authToken && userInfo) {
-                // User is already logged in, redirect to main app
-                window.location.href = '/app';
-            } else {
-                // User is not logged in, redirect to auth page
-                window.location.href = '/auth';
+            const submitBtn = document.getElementById('submitBtn');
+            const errorDiv = document.getElementById('error');
+            const resultDiv = document.getElementById('result');
+            
+            // Reset UI
+            errorDiv.classList.remove('show');
+            resultDiv.classList.remove('show');
+            submitBtn.textContent = 'Getting LTP...';
+            submitBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/put-ltp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        strike: parseFloat(strike),
+                        expiry: expiry
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Show results
+                    document.getElementById('resultSymbol').textContent = data.data.symbol;
+                    document.getElementById('resultStrike').textContent = `₹${data.data.strike.toLocaleString()}`;
+                    document.getElementById('resultExpiry').textContent = new Date(data.data.expiry).toLocaleDateString();
+                    document.getElementById('resultTradingSymbol').textContent = data.data.tradingsymbol;
+                    document.getElementById('resultLtp').textContent = `₹${data.data.ltp.toFixed(2)}`;
+                    document.getElementById('resultLotSize').textContent = data.data.lot_size.toLocaleString();
+                    document.getElementById('resultTotal').textContent = `₹${data.data.total_premium.toLocaleString()}`;
+                    
+                    resultDiv.classList.add('show');
+                } else {
+                    throw new Error(data.error || 'Failed to get PUT LTP');
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                errorDiv.textContent = error.message || 'Failed to fetch PUT LTP. Please try again.';
+                errorDiv.classList.add('show');
+            } finally {
+                submitBtn.textContent = 'Get Put LTP';
+                submitBtn.disabled = false;
             }
         });
+        
+        // Set default expiry to next Friday
+        function setDefaultExpiry() {
+            const today = new Date();
+            const nextFriday = new Date(today);
+            const daysUntilFriday = (5 - today.getDay() + 7) % 7;
+            if (daysUntilFriday === 0 && today.getDay() === 5) {
+                // If today is Friday, set to next Friday
+                nextFriday.setDate(today.getDate() + 7);
+            } else {
+                nextFriday.setDate(today.getDate() + daysUntilFriday);
+            }
+            
+            document.getElementById('expiry').value = nextFriday.toISOString().split('T')[0];
+        }
+        
+        setDefaultExpiry();
     </script>
 </body>
 </html>
