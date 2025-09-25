@@ -130,6 +130,19 @@ git push -u origin main
 
 The app will be live at your Vercel URL (e.g., `https://options-dekho.vercel.app`)
 
+### 3. Enable Vercel Web Analytics
+
+This project is wired to send page views to Vercel Analytics via the `@vercel/analytics` package (see `src/app/layout.tsx`). To view analytics in your Vercel dashboard:
+
+1. Open your project in the Vercel dashboard
+2. Go to the Analytics tab
+3. Click “Enable Web Analytics” (paid feature on some plans)
+
+Notes:
+- Analytics automatically tracks client-side navigations (App Router) and only sends data on deployed environments.
+- No additional environment variables are required.
+- You can disable data collection by removing the `<Analytics />` component from the root layout.
+
 ## Environment Variables
 
 Create a `.env.local` file with the following variables:
