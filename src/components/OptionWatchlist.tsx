@@ -131,15 +131,15 @@ export default function OptionWatchlist() {
   }, [auto, canFetch, rows])
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <h3 className="text-lg font-medium text-gray-900">Watchlist</h3>
         <div className="flex items-center gap-4">
           <label className="flex items-center">
             <input type="checkbox" className="h-4 w-4 text-blue-600" checked={auto} onChange={e => setAuto(e.target.checked)} />
             <span className="ml-2 text-sm text-gray-700">Auto-refresh (10s)</span>
           </label>
-          <button type="button" onClick={fetchQuotes} disabled={loading || !userId || !hasCompleteRow} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50">Refresh</button>
+          <button type="button" onClick={fetchQuotes} disabled={loading || !userId || !hasCompleteRow} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50 w-full sm:w-auto">Refresh</button>
         </div>
       </div>
 
@@ -147,7 +147,8 @@ export default function OptionWatchlist() {
         <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>
       )}
 
-      <div className="overflow-x-auto">
+      {/* Table on sm+ screens */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="min-w-full table-auto border-collapse">
           <thead>
             <tr className="bg-gray-50">
@@ -188,6 +189,36 @@ export default function OptionWatchlist() {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Card list on small screens */}
+      <div className="sm:hidden space-y-3">
+        {displayRows.length === 0 ? (
+          <div className="px-3 py-6 text-center text-gray-500 text-sm">No rows yet. Use “Add to Watchlist” above.</div>
+        ) : (
+          displayRows.map((r: WatchlistRow) => {
+            const q = quotes[r.id]
+            return (
+              <div key={r.id} className="border rounded-md p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="text-sm text-gray-700 font-medium">{r.symbol}</div>
+                    <div className="text-xs text-gray-500">{r.expiry} · {r.strike}</div>
+                  </div>
+                  <button type="button" onClick={() => removeRowAndQuote(r.id)} className="text-red-600 hover:text-red-700 text-xs">Remove</button>
+                </div>
+                <div className="mt-2 flex justify-between text-sm">
+                  <div className="text-gray-600">LTP</div>
+                  <div className="font-semibold tabular-nums">{q?.ltp?.toFixed(2) ?? '-'}</div>
+                </div>
+                <div className="mt-1 flex justify-between text-sm">
+                  <div className="text-gray-600">Yield %</div>
+                  <div className="font-semibold tabular-nums">{q?.yieldPct != null ? q.yieldPct.toFixed(2) : '-'}</div>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )

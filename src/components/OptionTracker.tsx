@@ -780,7 +780,7 @@ export default function OptionTracker() {
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6">
           <label className="flex items-center">
             <input
               type="checkbox"
@@ -791,7 +791,7 @@ export default function OptionTracker() {
             <span className="ml-2 text-sm text-gray-700">Auto-update every 10 seconds</span>
           </label>
           
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <label className="flex items-center">
               <input
                 type="checkbox"
@@ -808,7 +808,7 @@ export default function OptionTracker() {
             <button
               onClick={fetchOptionData}
               disabled={loading || !hasValidToken}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium disabled:opacity-50"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium disabled:opacity-50 w-full sm:w-auto"
               title={useWebSocket ? 'Fetch once via REST (WebSocket streaming is active)' : 'Fetch via REST'}
             >
               {loading ? 'Loading...' : 'Get LTP'}
@@ -816,7 +816,7 @@ export default function OptionTracker() {
             <button
               type="button"
               onClick={addCurrentToWatchlist}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm"
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm w-full sm:w-auto"
               title="Add this option to the watchlist below"
             >
               Add to Watchlist
