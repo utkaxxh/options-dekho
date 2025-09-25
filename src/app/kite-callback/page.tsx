@@ -46,7 +46,10 @@ export default function KiteCallback() {
       return false
     }
 
-    if (error || status === 'error') {
+  // Prepare BroadcastChannel for robust cross-window communication
+  const channel = 'BroadcastChannel' in window ? new BroadcastChannel('kite-auth') : null
+
+  if (error || status === 'error') {
       console.log('Authentication error detected:', error)
       
       const errorResult = {
@@ -57,6 +60,15 @@ export default function KiteCallback() {
 
       // Try postMessage first
       const messageSent = sendMessageSafely(errorResult)
+
+      // Broadcast channel as additional channel
+      try {
+        channel?.postMessage(errorResult)
+        console.log('Error result sent via BroadcastChannel')
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error'
+        console.log('BroadcastChannel send failed:', msg)
+      }
       
       // Always use localStorage as backup
       try {
@@ -66,7 +78,7 @@ export default function KiteCallback() {
         console.log('Failed to store in localStorage:', e)
       }
 
-    } else if (requestToken) {
+  } else if (requestToken) {
       console.log('Request token found:', requestToken)
       
       const successResult = {
@@ -77,6 +89,15 @@ export default function KiteCallback() {
 
       // Try postMessage first
       const messageSent = sendMessageSafely(successResult)
+
+      // Broadcast channel as additional channel
+      try {
+        channel?.postMessage(successResult)
+        console.log('Success result sent via BroadcastChannel')
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error'
+        console.log('BroadcastChannel send failed:', msg)
+      }
       
       // Always use localStorage as backup
       try {
@@ -97,6 +118,15 @@ export default function KiteCallback() {
 
       // Try postMessage first
       const messageSent = sendMessageSafely(errorResult)
+
+      // Broadcast channel as additional channel
+      try {
+        channel?.postMessage(errorResult)
+        console.log('Error result sent via BroadcastChannel')
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error'
+        console.log('BroadcastChannel send failed:', msg)
+      }
       
       // Always use localStorage as backup
       try {
@@ -120,6 +150,7 @@ export default function KiteCallback() {
     // Cleanup function
     return () => {
       window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+      try { channel?.close() } catch {}
     }
   }, [])
 

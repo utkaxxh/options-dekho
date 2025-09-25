@@ -138,7 +138,9 @@ export default function OptionTracker() {
         localStorage.removeItem('kite_auth_result')
         
         // Open login URL in new window
-        const popup = window.open(response.data.loginUrl, 'kiteLogin', 'width=600,height=600,scrollbars=yes,resizable=yes')
+        // Important: avoid 'noopener' so window.opener stays available
+        const features = 'width=600,height=700,scrollbars=yes,resizable=yes,noopener=no,noreferrer=no'
+        const popup = window.open(response.data.loginUrl, 'kiteLogin', features)
         
         if (!popup) {
           setError('Popup blocked. Please allow popups for this site and try again.')
@@ -168,7 +170,28 @@ export default function OptionTracker() {
           }
         }
 
-        // Method 2: Poll localStorage as fallback
+        // Method 2: BroadcastChannel listener (preferred when available)
+        let bc: BroadcastChannel | null = null
+        if ('BroadcastChannel' in window) {
+          bc = new BroadcastChannel('kite-auth')
+          bc.onmessage = (ev: MessageEvent) => {
+            const data = ev.data
+            console.log('BroadcastChannel message:', data)
+            if (authProcessed) return
+            if (data?.type === 'KITE_AUTH_SUCCESS' && data?.requestToken) {
+              authProcessed = true
+              cleanup()
+              handleRequestToken(data.requestToken)
+            } else if (data?.type === 'KITE_AUTH_ERROR') {
+              authProcessed = true
+              cleanup()
+              setError(data.error || 'Authentication failed')
+              setLoading(false)
+            }
+          }
+        }
+
+        // Method 3: Poll localStorage as fallback
         const pollInterval = setInterval(() => {
           const authResult = localStorage.getItem('kite_auth_result')
           if (authResult && !authProcessed) {
@@ -217,6 +240,7 @@ export default function OptionTracker() {
           clearInterval(pollInterval)
           clearInterval(checkClosed)
           window.removeEventListener('message', messageListener)
+          try { bc?.close() } catch {}
           if (popup && !popup.closed) {
             popup.close()
           }
