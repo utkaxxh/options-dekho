@@ -34,8 +34,23 @@ export default function KiteCallback() {
     const sendMessageSafely = (message: any) => {
       try {
         if (window.opener && !window.opener.closed) {
-          window.opener.postMessage(message, '*')
-          console.log('Message sent via postMessage:', message.type)
+          // Try with exact origin first
+          try {
+            window.opener.postMessage(message, window.location.origin)
+            console.log('Message sent via postMessage (exact origin):', message.type)
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Unknown error'
+            console.log('Exact-origin postMessage failed:', msg)
+          }
+
+          // Fallback to wildcard origin
+          try {
+            window.opener.postMessage(message, '*')
+            console.log('Message sent via postMessage (wildcard):', message.type)
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : 'Unknown error'
+            console.log('Wildcard postMessage failed:', msg)
+          }
           return true
         }
       } catch (e) {

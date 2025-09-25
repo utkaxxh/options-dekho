@@ -132,44 +132,30 @@ export default function OptionTracker() {
     try {
       const response = await axios.get('/api/kite/login-url')
       if (response.data.loginUrl) {
-        console.log('Opening Kite login popup:', response.data.loginUrl)
+        console.log('Preparing listeners for Kite login popup:', response.data.loginUrl)
         
         // Clear any previous auth results
         localStorage.removeItem('kite_auth_result')
         
-        // Open login URL in new window
-        // Important: avoid 'noopener' so window.opener stays available
-        const features = 'width=600,height=700,scrollbars=yes,resizable=yes,noopener=no,noreferrer=no'
-        const popup = window.open(response.data.loginUrl, 'kiteLogin', features)
-        
-        if (!popup) {
-          setError('Popup blocked. Please allow popups for this site and try again.')
-          setLoading(false)
-          return
-        }
-
         let authProcessed = false
-
-        // Method 1: Listen for postMessage
+        
+        // Method 1: Listen for postMessage (register before opening popup)
         const messageListener = (event: MessageEvent) => {
           console.log('Received message from popup:', event.data)
-          
-          if (authProcessed) return // Prevent double processing
-          
-          if (event.data.type === 'KITE_AUTH_SUCCESS' && event.data.requestToken) {
-            console.log('Authentication successful via postMessage, token received:', event.data.requestToken)
+          if (authProcessed) return
+          if (event.data?.type === 'KITE_AUTH_SUCCESS' && event.data?.requestToken) {
             authProcessed = true
             cleanup()
             handleRequestToken(event.data.requestToken)
-          } else if (event.data.type === 'KITE_AUTH_ERROR') {
-            console.log('Authentication error via postMessage:', event.data.error)
+          } else if (event.data?.type === 'KITE_AUTH_ERROR') {
             authProcessed = true
             cleanup()
             setError(event.data.error || 'Authentication failed')
             setLoading(false)
           }
         }
-
+        window.addEventListener('message', messageListener)
+        
         // Method 2: BroadcastChannel listener (preferred when available)
         let bc: BroadcastChannel | null = null
         if ('BroadcastChannel' in window) {
@@ -190,7 +176,7 @@ export default function OptionTracker() {
             }
           }
         }
-
+        
         // Method 3: Poll localStorage as fallback
         const pollInterval = setInterval(() => {
           const authResult = localStorage.getItem('kite_auth_result')
@@ -198,40 +184,47 @@ export default function OptionTracker() {
             try {
               const result = JSON.parse(authResult)
               console.log('Found auth result in localStorage:', result)
-              
-              // Check if result is recent (within last 2 minutes)
               const isRecent = Date.now() - result.timestamp < 120000
-              if (!isRecent) {
-                console.log('Auth result too old, ignoring')
-                return
-              }
-
+              if (!isRecent) return
               authProcessed = true
-              localStorage.removeItem('kite_auth_result') // Clean up
+              localStorage.removeItem('kite_auth_result')
               cleanup()
-
               if (result.type === 'KITE_AUTH_SUCCESS' && result.requestToken) {
-                console.log('Authentication successful via localStorage, token received:', result.requestToken)
                 handleRequestToken(result.requestToken)
               } else if (result.type === 'KITE_AUTH_ERROR') {
-                console.log('Authentication error via localStorage:', result.error)
                 setError(result.error || 'Authentication failed')
                 setLoading(false)
               }
-            } catch (e) {
-              console.log('Failed to parse auth result:', e)
-            }
+            } catch {}
           }
-        }, 1000) // Check every second
+        }, 1000)
+        
+        // Now open login URL in new window
+        console.log('Opening Kite login popup now')
+        const features = 'width=600,height=700,scrollbars=yes,resizable=yes,noopener=no,noreferrer=no'
+        const popup = window.open(response.data.loginUrl, 'kiteLogin', features)
+        
+        if (!popup) {
+          setError('Popup blocked. Please allow popups for this site and try again.')
+          setLoading(false)
+          return
+        }
+
 
         // Check if popup was closed manually
         const checkClosed = setInterval(() => {
           if (popup?.closed && !authProcessed) {
-            console.log('Popup closed manually')
-            authProcessed = true
-            cleanup()
-            setError('Authentication was cancelled. Please try again.')
-            setLoading(false)
+            console.log('Popup closed manually - starting grace period')
+            // Grace period: allow 2 seconds for late-arriving messages
+            setTimeout(() => {
+              if (!authProcessed) {
+                console.log('Grace period ended without auth result')
+                authProcessed = true
+                cleanup()
+                setError('Authentication was cancelled. Please try again.')
+                setLoading(false)
+              }
+            }, 2000)
           }
         }, 1000)
 
