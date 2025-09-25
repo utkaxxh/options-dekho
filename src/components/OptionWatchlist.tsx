@@ -37,7 +37,7 @@ export default function OptionWatchlist() {
   const canFetch = useMemo(() => rows.length > 0 && userId, [rows, userId])
 
   const addRow = () => {
-    const id = Math.random().toString(36).slice(2)
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
     setRows(prev => ([...prev, { id, symbol: '', strike: '', expiry: '' }]))
   }
 
@@ -122,8 +122,8 @@ export default function OptionWatchlist() {
             <input type="checkbox" className="h-4 w-4 text-blue-600" checked={auto} onChange={e => setAuto(e.target.checked)} />
             <span className="ml-2 text-sm text-gray-700">Auto-refresh (10s)</span>
           </label>
-          <button onClick={fetchQuotes} disabled={loading || !userId || rows.length === 0} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50">Refresh</button>
-          <button onClick={addRow} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm">Add row</button>
+          <button type="button" onClick={fetchQuotes} disabled={loading || !userId || rows.length === 0} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50">Refresh</button>
+          <button type="button" onClick={addRow} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm">Add row</button>
         </div>
       </div>
 
@@ -165,7 +165,7 @@ export default function OptionWatchlist() {
                   <td className="px-3 py-2 text-right tabular-nums">{q?.ltp?.toFixed(2) ?? '-'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{q?.yieldPct != null ? q.yieldPct.toFixed(2) : '-'}</td>
                   <td className="px-3 py-2 text-right">
-                    <button onClick={() => removeRow(r.id)} className="text-red-600 hover:text-red-700 text-sm">Remove</button>
+                    <button type="button" onClick={() => removeRow(r.id)} className="text-red-600 hover:text-red-700 text-sm">Remove</button>
                   </td>
                 </tr>
               )
