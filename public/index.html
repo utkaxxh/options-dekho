@@ -1,286 +1,243 @@
-<!DOCTYPE html>
-<html lang="en">
+﻿<!DOCTYPE html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Put LTP Finder</title>
+    <title>Options Dekho - PUT LTP Finder</title>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 500px;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 28px;
-            font-weight: 600;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            color: #555;
-            font-weight: 500;
-        }
-        
-        input[type="text"],
-        input[type="number"],
-        input[type="date"] {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e1e5e9;
-            border-radius: 6px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-        
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        button {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        
-        button:hover {
-            transform: translateY(-2px);
-        }
-        
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .result {
-            margin-top: 30px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            display: none;
-        }
-        
-        .result.show {
-            display: block;
-        }
-        
-        .result h3 {
-            color: #333;
-            margin-bottom: 15px;
-        }
-        
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            padding: 5px 0;
-        }
-        
-        .result-item:last-child {
-            border-top: 2px solid #ddd;
-            padding-top: 10px;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-        
-        .error {
-            margin-top: 20px;
-            padding: 15px;
-            background: #fee;
-            border: 1px solid #fcc;
-            border-radius: 6px;
-            color: #c66;
-            display: none;
-        }
-        
-        .error.show {
-            display: block;
-        }
-        
-        .status {
-            text-align: center;
-            margin-bottom: 20px;
-            padding: 10px;
-            background: #e8f5e8;
-            border: 1px solid #c3e6c3;
-            border-radius: 6px;
-            color: #2d5016;
-            font-size: 14px;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 500px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        h1 { text-align: center; color: #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, button { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        button { background: #007bff; color: white; cursor: pointer; border: none; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 15px; background: #d4edda; border: 1px solid #c3e6c3; border-radius: 5px; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .hidden { display: none; }
+        .auth-status { padding: 10px; margin-bottom: 15px; border-radius: 5px; text-align: center; }
+        .needs-login { background: #fff3cd; border: 1px solid #ffeaa7; }
+        .authenticated { background: #d1ecf1; border: 1px solid #bee5eb; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎯 Put LTP Finder</h1>
+    <div class='container'>
+        <h1>🎯 Options Dekho</h1>
         
-        <div class="status">
-            Real-time PUT option LTP from Zerodha Kite API
+        <!-- Auth Section -->
+        <div id='authSection' class='hidden'>
+            <div id='authStatus' class='auth-status'>
+                <p id='authMessage'>Checking authentication...</p>
+            </div>
+            <button id='loginBtn' class='hidden'>Login to Kite Connect</button>
+            <div id='tokenSection' class='hidden'>
+                <p>After login, paste the request_token from URL:</p>
+                <input type='text' id='requestToken' placeholder='Request token from URL'>
+                <button id='completeAuthBtn'>Complete Authentication</button>
+            </div>
         </div>
         
-        <form id="ltpForm">
-            <div class="form-group">
-                <label for="symbol">Stock Symbol:</label>
-                <input type="text" id="symbol" placeholder="e.g., NIFTY, BANKNIFTY, RELIANCE" required>
+        <!-- App Section -->
+        <div id='appSection' class='hidden'>
+            <div class='auth-status authenticated'>
+                <p>✅ Ready to fetch data</p>
+                <p id='tokenExpiry' style='font-size: 12px;'></p>
             </div>
-            
-            <div class="form-group">
-                <label for="strike">Strike Price:</label>
-                <input type="number" id="strike" placeholder="e.g., 24000" step="0.01" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="expiry">Expiry Date:</label>
-                <input type="date" id="expiry" required>
-            </div>
-            
-            <button type="submit" id="submitBtn">Get Put LTP</button>
-        </form>
-        
-        <div id="error" class="error"></div>
-        
-        <div id="result" class="result">
-            <h3>PUT Option Details</h3>
-            <div class="result-item">
-                <span>Symbol:</span>
-                <span id="resultSymbol"></span>
-            </div>
-            <div class="result-item">
-                <span>Strike Price:</span>
-                <span id="resultStrike"></span>
-            </div>
-            <div class="result-item">
-                <span>Expiry:</span>
-                <span id="resultExpiry"></span>
-            </div>
-            <div class="result-item">
-                <span>Trading Symbol:</span>
-                <span id="resultTradingSymbol"></span>
-            </div>
-            <div class="result-item">
-                <span>LTP (Per Share):</span>
-                <span id="resultLtp"></span>
-            </div>
-            <div class="result-item">
-                <span>Lot Size:</span>
-                <span id="resultLotSize"></span>
-            </div>
-            <div class="result-item">
-                <span>Total Premium (1 Lot):</span>
-                <span id="resultTotal"></span>
-            </div>
+            <form id='ltpForm'>
+                <div class='form-group'>
+                    <label>Symbol:</label>
+                    <input type='text' id='symbol' placeholder='e.g., BANKNIFTY, NIFTY' required>
+                </div>
+                <div class='form-group'>
+                    <label>Strike Price:</label>
+                    <input type='number' id='strike' placeholder='e.g., 48000' required>
+                </div>
+                <div class='form-group'>
+                    <label>Expiry Date:</label>
+                    <input type='date' id='expiry' required>
+                </div>
+                <button type='submit'>Get PUT LTP</button>
+                <button type='button' id='logoutBtn'>Logout</button>
+            </form>
         </div>
+        
+        <div id='result'></div>
     </div>
-
+    
     <script>
-        document.getElementById('ltpForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const symbol = document.getElementById('symbol').value.trim();
-            const strike = document.getElementById('strike').value;
-            const expiry = document.getElementById('expiry').value;
-            
-            const submitBtn = document.getElementById('submitBtn');
-            const errorDiv = document.getElementById('error');
-            const resultDiv = document.getElementById('result');
-            
-            // Reset UI
-            errorDiv.classList.remove('show');
-            resultDiv.classList.remove('show');
-            submitBtn.textContent = 'Getting LTP...';
-            submitBtn.disabled = true;
-            
-            try {
-                const response = await fetch('/api/put-ltp', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        symbol: symbol,
-                        strike: parseFloat(strike),
-                        expiry: expiry
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Show results
-                    document.getElementById('resultSymbol').textContent = data.data.symbol;
-                    document.getElementById('resultStrike').textContent = `₹${data.data.strike.toLocaleString()}`;
-                    document.getElementById('resultExpiry').textContent = new Date(data.data.expiry).toLocaleDateString();
-                    document.getElementById('resultTradingSymbol').textContent = data.data.tradingsymbol;
-                    document.getElementById('resultLtp').textContent = `₹${data.data.ltp.toFixed(2)}`;
-                    document.getElementById('resultLotSize').textContent = data.data.lot_size.toLocaleString();
-                    document.getElementById('resultTotal').textContent = `₹${data.data.total_premium.toLocaleString()}`;
-                    
-                    resultDiv.classList.add('show');
-                } else {
-                    throw new Error(data.error || 'Failed to get PUT LTP');
-                }
-                
-            } catch (error) {
-                console.error('Error:', error);
-                errorDiv.textContent = error.message || 'Failed to fetch PUT LTP. Please try again.';
-                errorDiv.classList.add('show');
-            } finally {
-                submitBtn.textContent = 'Get Put LTP';
-                submitBtn.disabled = false;
-            }
-        });
+        const API_BASE = window.location.origin;
+        let authState = { authenticated: false };
         
-        // Set default expiry to next Friday
+        document.addEventListener('DOMContentLoaded', init);
+        
+        async function init() {
+            setDefaultExpiry();
+            checkURLToken();
+            await checkAuthStatus();
+        }
+        
         function setDefaultExpiry() {
             const today = new Date();
             const nextFriday = new Date(today);
-            const daysUntilFriday = (5 - today.getDay() + 7) % 7;
+            const daysUntilFriday = (5 + 7 - today.getDay()) % 7;
             if (daysUntilFriday === 0 && today.getDay() === 5) {
-                // If today is Friday, set to next Friday
                 nextFriday.setDate(today.getDate() + 7);
             } else {
                 nextFriday.setDate(today.getDate() + daysUntilFriday);
             }
-            
             document.getElementById('expiry').value = nextFriday.toISOString().split('T')[0];
         }
         
-        setDefaultExpiry();
+        function checkURLToken() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const requestToken = urlParams.get('request_token');
+            if (requestToken) {
+                document.getElementById('requestToken').value = requestToken;
+                showTokenSection();
+            }
+        }
+        
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/status');
+                const result = await response.json();
+                if (result.success) {
+                    authState = result.data;
+                    updateUI();
+                }
+            } catch (error) {
+                showAuthSection('Connection error');
+            }
+        }
+        
+        function updateUI() {
+            if (authState.authenticated) {
+                showAppSection();
+                if (authState.expires_at) {
+                    document.getElementById('tokenExpiry').textContent = 
+                        'Expires: ' + new Date(authState.expires_at).toLocaleString();
+                }
+            } else {
+                showAuthSection('Please login to continue');
+            }
+        }
+        
+        function showAuthSection(message) {
+            document.getElementById('authSection').classList.remove('hidden');
+            document.getElementById('appSection').classList.add('hidden');
+            document.getElementById('authMessage').textContent = message;
+            document.getElementById('loginBtn').classList.remove('hidden');
+        }
+        
+        function showAppSection() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('appSection').classList.remove('hidden');
+        }
+        
+        function showTokenSection() {
+            document.getElementById('tokenSection').classList.remove('hidden');
+            document.getElementById('loginBtn').classList.add('hidden');
+        }
+        
+        // Event listeners
+        document.getElementById('loginBtn').addEventListener('click', async function() {
+            try {
+                const response = await fetch('/api/auth/login-url');
+                const result = await response.json();
+                if (result.success) {
+                    window.open(result.data.login_url, '_blank');
+                    showTokenSection();
+                }
+            } catch (error) {
+                showResult('Login error: ' + error.message, true);
+            }
+        });
+        
+        document.getElementById('completeAuthBtn').addEventListener('click', async function() {
+            const token = document.getElementById('requestToken').value.trim();
+            if (!token) {
+                alert('Please enter the request token');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/auth/token-exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ request_token: token })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    await checkAuthStatus();
+                    showResult('Authentication successful!', false);
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                showResult('Auth error: ' + error.message, true);
+            }
+        });
+        
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            authState = { authenticated: false };
+            showAuthSection('Please login to continue');
+            clearResult();
+        });
+        
+        document.getElementById('ltpForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const data = {
+                symbol: document.getElementById('symbol').value.trim(),
+                strike: parseFloat(document.getElementById('strike').value),
+                expiry: document.getElementById('expiry').value
+            };
+            
+            try {
+                const response = await fetch('/api/put-ltp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    const d = result.data;
+                    showResult(
+                        'PUT Option Found!<br>' +
+                        'Symbol: ' + d.tradingsymbol + '<br>' +
+                        'Strike: ₹' + d.strike.toLocaleString() + '<br>' +
+                        'LTP: ₹' + d.ltp.toFixed(2) + '<br>' +
+                        'Lot Size: ' + d.lot_size.toLocaleString() + '<br>' +
+                        'Total Premium: ₹' + d.total_premium.toLocaleString() + '<br>' +
+                        'Expiry: ' + d.expiry,
+                        false
+                    );
+                } else {
+                    if (result.needs_login) {
+                        authState.authenticated = false;
+                        updateUI();
+                    }
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                showResult('Error: ' + error.message, true);
+            }
+        });
+        
+        function showResult(message, isError) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = message;
+            resultDiv.className = isError ? 'result error' : 'result';
+        }
+        
+        function clearResult() {
+            document.getElementById('result').innerHTML = '';
+            document.getElementById('result').className = '';
+        }
     </script>
 </body>
 </html>
