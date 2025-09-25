@@ -10,10 +10,33 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ user }: DashboardProps) {
+  const [signingOut, setSigningOut] = useState(false)
   const supabase = createClient()
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    setSigningOut(true)
+    try {
+      // Clear any stored tokens when signing out
+      await fetch('/api/kite/token-status', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ user_id: user.id })
+      }).catch(() => {
+        // Ignore errors when clearing tokens
+      })
+
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Sign out error:', error)
+      }
+    } catch (error) {
+      console.error('Sign out failed:', error)
+    } finally {
+      setSigningOut(false)
+    }
   }
 
   return (
@@ -28,9 +51,10 @@ export default function Dashboard({ user }: DashboardProps) {
               <span className="text-gray-700">Welcome, {user.email}</span>
               <button
                 onClick={handleSignOut}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                disabled={signingOut}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
               >
-                Sign out
+                {signingOut ? 'Signing out...' : 'Sign out'}
               </button>
             </div>
           </div>
