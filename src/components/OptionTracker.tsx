@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { createClient } from '@/lib/supabase'
 
@@ -27,6 +27,13 @@ export default function OptionTracker() {
   const [autoUpdate, setAutoUpdate] = useState(false)
   const [showTokenInput, setShowTokenInput] = useState(false)
   const [userId, setUserId] = useState<string>('')
+  const [useWebSocket, setUseWebSocket] = useState(false)
+  const [wsConnected, setWsConnected] = useState(false)
+  const [resolvedTsym, setResolvedTsym] = useState<string>('')
+  const [resolvedToken, setResolvedToken] = useState<number | null>(null)
+
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectRef = useRef<number>(0)
 
   const supabase = createClient()
 
@@ -124,6 +131,184 @@ export default function OptionTracker() {
     
     return `${symbol.toUpperCase()}${year}${month}${strike}PE`
   }
+
+  // Resolve exact tradingsymbol and instrument_token from Kite instruments
+  const resolveInstrument = async () => {
+    if (!userId || !symbol || !strike || !expiry) {
+      setError('Please fill all fields')
+      return null
+    }
+    try {
+      const resp = await axios.get('/api/kite/instruments', {
+        params: {
+          user_id: userId,
+          symbol: symbol.trim(),
+          strike: String(strike).trim(),
+          expiry
+        }
+      })
+      const instrument = resp.data.instrument || resp.data?.instrument
+      if (!instrument) {
+        setError(resp.data?.error || 'No matching instrument found')
+        return null
+      }
+      setResolvedTsym(instrument.tradingsymbol)
+      setResolvedToken(instrument.instrument_token)
+      return instrument as { tradingsymbol: string; instrument_token: number }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Failed to resolve instrument'
+      setError(msg)
+      return null
+    }
+  }
+
+  // Parse Kite full mode packet into OptionData shape
+  const parseFullPacket = (buf: ArrayBuffer) => {
+    const dv = new DataView(buf)
+    let offset = 0
+    const packets = dv.getInt16(offset, false); offset += 2 // big-endian
+    const results: OptionData[] = []
+    for (let i = 0; i < packets; i++) {
+      const length = dv.getInt16(offset, false); offset += 2
+      const start = offset
+      // Packet fields (big-endian int32)
+      const instrument_token = dv.getInt32(offset, false); offset += 4
+      const ltpPaise = dv.getInt32(offset, false); offset += 4
+      const last_qty = dv.getInt32(offset, false); offset += 4
+      const avgPricePaise = dv.getInt32(offset, false); offset += 4
+      const volume = dv.getInt32(offset, false); offset += 4
+      const buyQty = dv.getInt32(offset, false); offset += 4
+      const sellQty = dv.getInt32(offset, false); offset += 4
+      const openPaise = dv.getInt32(offset, false); offset += 4
+      const highPaise = dv.getInt32(offset, false); offset += 4
+      const lowPaise = dv.getInt32(offset, false); offset += 4
+      const closePaise = dv.getInt32(offset, false); offset += 4
+      const lastTs = dv.getInt32(offset, false); offset += 4
+      const oi = dv.getInt32(offset, false); offset += 4
+      const oiHigh = dv.getInt32(offset, false); offset += 4
+      const oiLow = dv.getInt32(offset, false); offset += 4
+      const exchTs = dv.getInt32(offset, false); offset += 4
+
+      const bids: Array<{ price: number; quantity: number }> = []
+      const asks: Array<{ price: number; quantity: number }> = []
+      // 5 bid entries then 5 ask entries; each entry 12 bytes (qty int32, price int32, orders int16, pad int16)
+      for (let j = 0; j < 5; j++) {
+        const qty = dv.getInt32(offset, false); offset += 4
+        const pricePaise = dv.getInt32(offset, false); offset += 4
+        offset += 2 // orders
+        offset += 2 // padding
+        bids.push({ price: pricePaise / 100, quantity: qty })
+      }
+      for (let j = 0; j < 5; j++) {
+        const qty = dv.getInt32(offset, false); offset += 4
+        const pricePaise = dv.getInt32(offset, false); offset += 4
+        offset += 2 // orders
+        offset += 2 // padding
+        asks.push({ price: pricePaise / 100, quantity: qty })
+      }
+
+      results.push({
+        last_price: ltpPaise / 100,
+        depth: { buy: bids, sell: asks },
+        volume,
+        oi
+      })
+
+      // Move to next packet (in case)
+      const consumed = offset - start
+      if (consumed < length) offset = start + length
+    }
+    return results
+  }
+
+  // Connect to Kite WebSocket and stream live quotes
+  const connectWebSocket = async () => {
+    if (!hasValidToken) {
+      setError('Please authenticate with Kite first')
+      return
+    }
+    const instrument = await resolveInstrument()
+    if (!instrument) return
+
+    try {
+      const urlResp = await axios.get('/api/kite/ws-url', { params: { user_id: userId } })
+      const url: string = urlResp.data.url
+
+      // Clean up any existing connection
+      if (wsRef.current) {
+        try { wsRef.current.close() } catch {}
+        wsRef.current = null
+      }
+      setWsConnected(false)
+      reconnectRef.current = 0
+
+      const ws = new WebSocket(url)
+      wsRef.current = ws
+
+      ws.binaryType = 'arraybuffer'
+      ws.onopen = () => {
+        setWsConnected(true)
+        // Subscribe and set mode full
+        ws.send(JSON.stringify({ a: 'subscribe', v: [instrument.instrument_token] }))
+        ws.send(JSON.stringify({ a: 'mode', v: ['full', [instrument.instrument_token]] }))
+      }
+      ws.onmessage = async (ev: MessageEvent) => {
+        try {
+          if (typeof ev.data === 'string') {
+            // Text messages: errors or order messages
+            // Optionally handle token errors here
+            return
+          }
+          const buf: ArrayBuffer = ev.data as ArrayBuffer
+          const results = parseFullPacket(buf)
+          if (results.length > 0) {
+            // For single subscribed instrument, take first
+            setOptionData(results[0])
+          }
+        } catch (e) {
+          console.error('WS message parse error:', e)
+        }
+      }
+      ws.onerror = (e) => {
+        console.error('WS error:', e)
+      }
+      ws.onclose = () => {
+        setWsConnected(false)
+        if (useWebSocket) {
+          // Try a simple bounded reconnect
+          if (reconnectRef.current < 3) {
+            reconnectRef.current += 1
+            setTimeout(() => {
+              connectWebSocket()
+            }, 1000 * reconnectRef.current)
+          }
+        }
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Failed to connect WebSocket'
+      setError(msg)
+    }
+  }
+
+  // Cleanup on unmount or when toggling off
+  useEffect(() => {
+    if (!useWebSocket) {
+      if (wsRef.current) {
+        try {
+          if (resolvedToken && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ a: 'unsubscribe', v: [resolvedToken] }))
+          }
+        } catch {}
+        try { wsRef.current.close() } catch {}
+        wsRef.current = null
+      }
+      setWsConnected(false)
+    } else {
+      // Start WS streaming
+      connectWebSocket()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useWebSocket, symbol, strike, expiry])
 
   const initiateKiteLogin = async () => {
     setLoading(true)
@@ -521,13 +706,29 @@ export default function OptionTracker() {
             <span className="ml-2 text-sm text-gray-700">Auto-update every 10 seconds</span>
           </label>
           
-          <button
-            onClick={fetchOptionData}
-            disabled={loading || !hasValidToken}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium disabled:opacity-50"
-          >
-            {loading ? 'Loading...' : 'Get LTP'}
-          </button>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={useWebSocket}
+                onChange={(e) => {
+                  setUseWebSocket(e.target.checked)
+                  // If WS is enabled, turn off REST auto-update to avoid conflicts
+                  if (e.target.checked) setAutoUpdate(false)
+                }}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <span className="ml-2 text-sm text-gray-700">Live via WebSocket</span>
+            </label>
+            <button
+              onClick={fetchOptionData}
+              disabled={loading || !hasValidToken || useWebSocket}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium disabled:opacity-50"
+              title={useWebSocket ? 'Disable WebSocket to use REST fetch' : 'Fetch via REST'}
+            >
+              {loading ? 'Loading...' : 'Get LTP'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -545,9 +746,9 @@ export default function OptionTracker() {
             <h3 className="text-lg font-medium text-gray-900">
               {generateTradingSymbol()} - Put Option LTP
             </h3>
-            {autoUpdate && (
+            {(autoUpdate || (useWebSocket && wsConnected)) && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                Auto-updating
+                {useWebSocket ? 'Live (WebSocket)' : 'Auto-updating'}
               </span>
             )}
           </div>
