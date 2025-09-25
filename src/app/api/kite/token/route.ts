@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       })
     })
 
-    const data = await response.json()
+  const data = await response.json()
 
     if (!response.ok) {
       return NextResponse.json(
@@ -46,10 +46,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Save token to database
-    if (data.access_token) {
+    // Save token to database (Kite returns access_token under data.access_token)
+    const accessToken = data.access_token || data?.data?.access_token
+    if (accessToken) {
       const tokenManager = new TokenManager()
-      await tokenManager.saveToken(user_id, data.access_token)
+      await tokenManager.saveToken(user_id, accessToken)
     }
 
     return NextResponse.json(data)

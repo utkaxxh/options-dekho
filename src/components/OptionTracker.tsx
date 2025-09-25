@@ -458,8 +458,8 @@ export default function OptionTracker() {
       })
 
       console.log('Token generation response:', response.data)
-
-      if (response.data.access_token) {
+      const accessToken = response.data.access_token || response.data?.data?.access_token
+      if (accessToken) {
         console.log('Access token generated successfully')
         
         // Update all authentication states
@@ -502,7 +502,8 @@ export default function OptionTracker() {
         user_id: userId
       })
 
-      if (response.data.access_token) {
+      const accessToken = response.data.access_token || response.data?.data?.access_token
+      if (accessToken) {
         setHasValidToken(true)
         setShowTokenInput(false)
         setRequestToken('')
