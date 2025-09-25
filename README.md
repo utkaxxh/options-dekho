@@ -163,6 +163,14 @@ The app automatically generates trading symbols using this format:
 - DELETE /api/kite/token-status — Deletes the stored token for the current user
 - GET /api/kite/quote — Fetches real-time option quotes (validates input, has timeouts, maps errors)
 
+## Watchlist Persistence (Supabase)
+
+To persist watchlist rows per user with Row Level Security:
+
+1. Open Supabase SQL Editor and run the SQL in `supabase/schema.sql`.
+2. The app will automatically load/save watchlist rows for the logged-in user.
+3. RLS policies ensure users only access their own rows.
+
 ## Important Notes
 
 - Market Hours: Kite APIs are mostly useful during market hours

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
-import { createClient } from '@/lib/supabase'
+import { useWatchlist } from '@/context/WatchlistContext'
+import type { WatchlistRow } from '@/context/WatchlistContext'
 
 type Row = {
   id: string
@@ -19,23 +20,22 @@ type QuoteRow = Row & {
 }
 
 export default function OptionWatchlist() {
-  const [rows, setRows] = useState<Row[]>([])
+  const { userId, rows, addRow, updateRow, removeRow, replaceAll } = useWatchlist() as {
+    userId: string | null,
+    rows: WatchlistRow[],
+    addRow: (init?: Partial<WatchlistRow>) => Promise<void>,
+    updateRow: (id: string, patch: Partial<WatchlistRow>) => Promise<void>,
+    removeRow: (id: string) => Promise<void>,
+    replaceAll: (rows: WatchlistRow[]) => Promise<void>,
+  }
   const [quotes, setQuotes] = useState<Record<string, QuoteRow>>({})
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [auto, setAuto] = useState(true)
-  const [userId, setUserId] = useState<string>('')
-
-  const supabase = createClient()
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
-      if (session?.user?.id) setUserId(session.user.id)
-    })
-  }, [supabase])
+  // userId comes from context
 
   const hasCompleteRow = useMemo(
-    () => rows.some(r => r.symbol && r.strike && r.expiry),
+    () => rows.some((r: WatchlistRow) => r.symbol && r.strike && r.expiry),
     [rows]
   )
   const canFetch = useMemo(
@@ -43,29 +43,20 @@ export default function OptionWatchlist() {
     [hasCompleteRow, userId]
   )
 
-  const addRow = () => {
-    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-    setRows(prev => ([...prev, { id, symbol: '', strike: '', expiry: '' }]))
-    // No direct DOM focus here to keep SSR/CSR simple; user will see the new row at bottom
+  // addRow comes from context (kept same name)
+
+  // removeRow from context; also prune quotes
+  const removeRowAndQuote = (id: string) => {
+    removeRow(id)
+    setQuotes(prev => { const copy = { ...prev }; delete copy[id]; return copy })
   }
 
-  const removeRow = (id: string) => {
-    setRows(prev => prev.filter(r => r.id !== id))
-    setQuotes(prev => {
-      const copy = { ...prev }
-      delete copy[id]
-      return copy
-    })
-  }
-
-  const updateRow = (id: string, patch: Partial<Row>) => {
-    setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r))
-  }
+  // updateRow from context
 
   const resolveAll = async () => {
     // Resolve only complete rows and preserve incomplete rows as-is
-    const updated: Row[] = await Promise.all(
-      rows.map(async (r) => {
+    const updated: WatchlistRow[] = await Promise.all(
+      rows.map(async (r: WatchlistRow) => {
         if (!r.symbol || !r.strike || !r.expiry) return r
         try {
           const resp = await axios.get('/api/kite/instruments', {
@@ -83,7 +74,7 @@ export default function OptionWatchlist() {
         }
       })
     )
-    setRows(updated)
+    await replaceAll(updated)
     return updated
   }
 
@@ -93,12 +84,12 @@ export default function OptionWatchlist() {
     setLoading(true)
     try {
       // Ensure we have resolved tradingsymbols
-      const withTsym = rows.every(r => r.tradingsymbol)
-      const targets = withTsym ? rows : await resolveAll()
-      const instruments = targets.filter(t => t.tradingsymbol).map(t => `NFO:${t.tradingsymbol}`)
+  const withTsym = rows.every((r: WatchlistRow) => r.tradingsymbol)
+  const targets: WatchlistRow[] = withTsym ? rows : await resolveAll()
+  const instruments = targets.filter((t: WatchlistRow) => t.tradingsymbol).map((t: WatchlistRow) => `NFO:${t.tradingsymbol}`)
       if (instruments.length === 0) return
   const url = new URL('/api/kite/quotes', window.location.origin)
-      url.searchParams.append('user_id', userId)
+  url.searchParams.append('user_id', userId as string)
       for (const ins of instruments) url.searchParams.append('instruments', ins)
       const resp = await axios.get(url.toString())
       const data = resp.data.data as Record<string, any>
@@ -138,7 +129,7 @@ export default function OptionWatchlist() {
             <span className="ml-2 text-sm text-gray-700">Auto-refresh (10s)</span>
           </label>
           <button type="button" onClick={fetchQuotes} disabled={loading || !userId || !hasCompleteRow} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50">Refresh</button>
-          <button type="button" onClick={addRow} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm">Add row</button>
+          <button type="button" onClick={() => addRow()} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm">Add row</button>
         </div>
       </div>
 
@@ -164,7 +155,7 @@ export default function OptionWatchlist() {
                 <td colSpan={6} className="px-3 py-6 text-center text-gray-500 text-sm">No rows yet. Click “Add row”.</td>
               </tr>
             )}
-            {rows.map((r) => {
+            {rows.map((r: WatchlistRow) => {
               const q = quotes[r.id]
               return (
                 <tr key={r.id} className="border-b last:border-0">
@@ -180,7 +171,7 @@ export default function OptionWatchlist() {
                   <td className="px-3 py-2 text-right tabular-nums">{q?.ltp?.toFixed(2) ?? '-'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{q?.yieldPct != null ? q.yieldPct.toFixed(2) : '-'}</td>
                   <td className="px-3 py-2 text-right">
-                    <button type="button" onClick={() => removeRow(r.id)} className="text-red-600 hover:text-red-700 text-sm">Remove</button>
+                    <button type="button" onClick={() => removeRowAndQuote(r.id)} className="text-red-600 hover:text-red-700 text-sm">Remove</button>
                   </td>
                 </tr>
               )

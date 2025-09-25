@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { createClient } from '@/lib/supabase'
+import { useWatchlist } from '@/context/WatchlistContext'
 
 interface OptionData {
   last_price: number
@@ -36,6 +37,7 @@ export default function OptionTracker() {
   const reconnectRef = useRef<number>(0)
 
   const supabase = createClient()
+  const { addRow: addToWatchlistCtx } = useWatchlist()
 
   const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
     'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -559,6 +561,34 @@ export default function OptionTracker() {
     }
   }
 
+  const addCurrentToWatchlist = async () => {
+    if (!symbol || !strike || !expiry) {
+      setError('Fill Symbol, Strike, and Expiry before adding to watchlist')
+      return
+    }
+    try {
+      // Try resolving instrument to store exact tradingsymbol/instrument_token
+      const resp = await axios.get('/api/kite/instruments', {
+        params: { user_id: userId, symbol: symbol.trim(), strike: String(strike).trim(), expiry }
+      })
+      const inst = resp.data?.instrument
+      await addToWatchlistCtx({
+        symbol: symbol.trim().toUpperCase(),
+        strike: String(strike).trim(),
+        expiry,
+        tradingsymbol: inst?.tradingsymbol,
+        instrument_token: inst?.instrument_token,
+      })
+    } catch (_e) {
+      // If resolve fails, still add a raw row; it can be resolved later by Refresh
+      await addToWatchlistCtx({
+        symbol: symbol.trim().toUpperCase(),
+        strike: String(strike).trim(),
+        expiry,
+      })
+    }
+  }
+
   const handleReAuthenticate = () => {
     setHasValidToken(false)
     setShowTokenInput(false)
@@ -728,6 +758,14 @@ export default function OptionTracker() {
               title={useWebSocket ? 'Fetch once via REST (WebSocket streaming is active)' : 'Fetch via REST'}
             >
               {loading ? 'Loading...' : 'Get LTP'}
+            </button>
+            <button
+              type="button"
+              onClick={addCurrentToWatchlist}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm"
+              title="Add this option to the watchlist below"
+            >
+              Add to Watchlist
             </button>
           </div>
         </div>
