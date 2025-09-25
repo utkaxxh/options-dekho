@@ -132,13 +132,22 @@ export default function OptionTracker() {
     try {
       const response = await axios.get('/api/kite/login-url')
       if (response.data.loginUrl) {
+        console.log('Opening Kite login popup:', response.data.loginUrl)
+        
         // Open login URL in new window
         const popup = window.open(response.data.loginUrl, 'kiteLogin', 'width=600,height=600,scrollbars=yes,resizable=yes')
         
+        if (!popup) {
+          setError('Popup blocked. Please allow popups for this site and try again.')
+          setLoading(false)
+          return
+        }
+
         // Listen for popup messages
         const checkClosed = setInterval(() => {
           if (popup?.closed) {
             clearInterval(checkClosed)
+            window.removeEventListener('message', messageListener)
             setError('Authentication was cancelled. Please try again.')
             setLoading(false)
           }
@@ -146,9 +155,13 @@ export default function OptionTracker() {
 
         // Listen for messages from popup
         const messageListener = (event: MessageEvent) => {
-          if (event.origin !== window.location.origin) return
+          console.log('Received message from popup:', event)
+          
+          // Accept messages from any origin for broader compatibility
+          // In production, you might want to be more restrictive
           
           if (event.data.type === 'KITE_AUTH_SUCCESS' && event.data.requestToken) {
+            console.log('Authentication successful, token received:', event.data.requestToken)
             clearInterval(checkClosed)
             popup?.close()
             window.removeEventListener('message', messageListener)
@@ -156,6 +169,7 @@ export default function OptionTracker() {
             // Automatically generate access token
             handleRequestToken(event.data.requestToken)
           } else if (event.data.type === 'KITE_AUTH_ERROR') {
+            console.log('Authentication error:', event.data.error)
             clearInterval(checkClosed)
             popup?.close()
             window.removeEventListener('message', messageListener)
@@ -165,28 +179,51 @@ export default function OptionTracker() {
         }
 
         window.addEventListener('message', messageListener)
+        
+        // Set a maximum timeout for the entire process
+        setTimeout(() => {
+          if (!popup.closed) {
+            popup.close()
+            clearInterval(checkClosed)
+            window.removeEventListener('message', messageListener)
+            setError('Authentication timeout. Please try again.')
+            setLoading(false)
+          }
+        }, 300000) // 5 minute timeout
       }
     } catch (err: any) {
+      console.error('Failed to initiate Kite login:', err)
       setError(err.response?.data?.error || 'Failed to initiate Kite login')
       setLoading(false)
     }
   }
 
   const handleRequestToken = async (requestToken: string) => {
+    console.log('Processing request token:', requestToken)
+    
     try {
+      setLoading(true)
+      setError('')
+      
       const response = await axios.post('/api/kite/token', {
         request_token: requestToken,
         user_id: userId
       })
 
+      console.log('Token generation response:', response.data)
+
       if (response.data.access_token) {
+        console.log('Access token generated successfully')
         setHasValidToken(true)
         setShowTokenInput(false)
         setRequestToken('')
         setError('')
         setLoading(false)
+      } else {
+        throw new Error('No access token received from server')
       }
     } catch (err: any) {
+      console.error('Token generation failed:', err)
       setError(err.response?.data?.error || 'Failed to generate access token')
       setLoading(false)
     }

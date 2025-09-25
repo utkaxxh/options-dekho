@@ -4,35 +4,50 @@ import { useEffect } from 'react'
 
 export default function KiteCallback() {
   useEffect(() => {
+    console.log('Kite callback page loaded')
+    console.log('Current URL:', window.location.href)
+    
     const urlParams = new URLSearchParams(window.location.search)
     const requestToken = urlParams.get('request_token')
     const status = urlParams.get('status')
     const error = urlParams.get('error')
 
+    console.log('URL params:', { requestToken, status, error })
+
     if (error || status === 'error') {
+      console.log('Authentication error detected:', error)
       // Send error message to parent window
-      window.opener?.postMessage({
-        type: 'KITE_AUTH_ERROR',
-        error: error || 'Authentication failed'
-      }, window.location.origin)
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'KITE_AUTH_ERROR',
+          error: error || 'Authentication failed'
+        }, '*') // Use '*' for broader compatibility
+      }
     } else if (requestToken) {
+      console.log('Request token found:', requestToken)
       // Send success message with request token to parent window
-      window.opener?.postMessage({
-        type: 'KITE_AUTH_SUCCESS',
-        requestToken: requestToken
-      }, window.location.origin)
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'KITE_AUTH_SUCCESS',
+          requestToken: requestToken
+        }, '*') // Use '*' for broader compatibility
+      }
     } else {
+      console.log('No request token found in URL')
       // No token found
-      window.opener?.postMessage({
-        type: 'KITE_AUTH_ERROR',
-        error: 'No request token received'
-      }, window.location.origin)
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'KITE_AUTH_ERROR',
+          error: 'No request token received from Kite'
+        }, '*') // Use '*' for broader compatibility
+      }
     }
 
     // Close the popup after a short delay
     setTimeout(() => {
+      console.log('Closing popup window')
       window.close()
-    }, 1000)
+    }, 2000) // Increased delay to 2 seconds for better UX
   }, [])
 
   return (

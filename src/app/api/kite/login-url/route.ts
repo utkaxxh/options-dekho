@@ -14,10 +14,14 @@ export async function GET(request: NextRequest) {
     // Get the base URL for redirect
     const { headers } = request
     const host = headers.get('host')
-    const protocol = headers.get('x-forwarded-proto') || 'https'
+    const protocol = headers.get('x-forwarded-proto') || (host?.includes('localhost') ? 'http' : 'https')
     const redirectUri = `${protocol}://${host}/kite-callback`
 
+    console.log('Generated redirect URI:', redirectUri)
+
     const loginUrl = `https://kite.zerodha.com/connect/login?api_key=${api_key}&v=3&redirect=${encodeURIComponent(redirectUri)}`
+
+    console.log('Generated login URL:', loginUrl)
 
     return NextResponse.json({ loginUrl })
   } catch (error) {
