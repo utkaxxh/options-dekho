@@ -601,6 +601,24 @@ export default function OptionTracker() {
     setError('')
   }
 
+  const disconnectKite = async () => {
+    if (!userId) return
+    try {
+      await fetch('/api/kite/token-status', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      })
+      setHasValidToken(false)
+      setTokenExpiringSoon(false)
+      setToast({ message: 'Disconnected Kite', kind: 'success' })
+      setTimeout(() => setToast(null), 2000)
+    } catch (e) {
+      setToast({ message: 'Failed to disconnect Kite', kind: 'error' })
+      setTimeout(() => setToast(null), 2500)
+    }
+  }
+
   // Auto-update every 10 seconds
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -686,6 +704,21 @@ export default function OptionTracker() {
               className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium"
             >
               Re-authenticate
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Kite connected controls */}
+      {hasValidToken && (
+        <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
+          <div className="text-sm text-gray-700">Kite is connected for today.</div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={disconnectKite}
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm"
+            >
+              Disconnect Kite
             </button>
           </div>
         </div>

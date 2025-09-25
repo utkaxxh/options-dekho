@@ -19,33 +19,11 @@ export default function Dashboard({ user }: DashboardProps) {
     setSigningOut(true)
     
     try {
-      // Start Supabase signout immediately - this is the most important action
-      const signOutPromise = supabase.auth.signOut()
-
-      // Start token clearing in parallel with a very short timeout
-      const tokenClearPromise = Promise.race([
-        fetch('/api/kite/token-status', {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ user_id: user.id })
-        }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 2000) // 2 second timeout
-        )
-      ]).catch(() => {
-        // Ignore errors/timeouts when clearing tokens - not critical for signout
-      })
-
-      // Wait for Supabase signout (should be fast)
-      const { error } = await signOutPromise
+      // Sign out from Supabase; keep Kite token intact across app logouts
+      const { error } = await supabase.auth.signOut()
       if (error) {
         console.error('Sign out error:', error)
       }
-
-      // Don't wait for token clearing - let it finish in background
-      tokenClearPromise.catch(() => {})
       
     } catch (error) {
       console.error('Sign out failed:', error)

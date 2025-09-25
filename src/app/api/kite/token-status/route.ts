@@ -19,8 +19,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       hasValidToken: !!validToken,
-      expiringSoon,
-      accessToken: validToken
+      expiringSoon
     })
   } catch (error) {
     console.error('Token check error:', error)
