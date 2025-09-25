@@ -32,6 +32,7 @@ export default function OptionTracker() {
   const [wsConnected, setWsConnected] = useState(false)
   const [resolvedTsym, setResolvedTsym] = useState<string>('')
   const [resolvedToken, setResolvedToken] = useState<number | null>(null)
+  const [toast, setToast] = useState<{ message: string; kind?: 'success' | 'error' } | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<number>(0)
@@ -579,6 +580,7 @@ export default function OptionTracker() {
         tradingsymbol: inst?.tradingsymbol,
         instrument_token: inst?.instrument_token,
       })
+      setToast({ message: 'Added to watchlist', kind: 'success' })
     } catch (_e) {
       // If resolve fails, still add a raw row; it can be resolved later by Refresh
       await addToWatchlistCtx({
@@ -586,7 +588,10 @@ export default function OptionTracker() {
         strike: String(strike).trim(),
         expiry,
       })
+      setToast({ message: 'Added to watchlist (will resolve on refresh)', kind: 'success' })
     }
+    // auto-dismiss toast
+    setTimeout(() => setToast(null), 2500)
   }
 
   const handleReAuthenticate = () => {
@@ -609,6 +614,22 @@ export default function OptionTracker() {
 
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-4 right-4 z-50 max-w-sm shadow-lg rounded-md px-4 py-3 text-sm ${toast.kind === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+          <div className="flex items-start gap-3">
+            <span>{toast.message}</span>
+            <button
+              type="button"
+              className="ml-auto opacity-90 hover:opacity-100"
+              onClick={() => setToast(null)}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
       {/* Kite Authentication Section */}
       {!hasValidToken && (
         <div className="bg-white rounded-lg shadow-md p-6">
