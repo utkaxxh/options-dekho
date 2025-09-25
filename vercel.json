@@ -1,0 +1,59 @@
+{{
+
+  "version": 2,  "buildCommand": "echo 'No build required for static site'",
+
+  "builds": [  "outputDirectory": "public",
+
+    {  "devCommand": "python -m http.server 3000",
+
+      "src": "server.js",  "installCommand": "echo 'No install required for static site'",
+
+      "use": "@vercel/node"  "framework": null,
+
+    }  "rewrites": [
+
+  ],    {
+
+  "routes": [      "source": "/auth",
+
+    {      "destination": "/auth.html"
+
+      "src": "/(.*)",    },
+
+      "dest": "/server.js"    {
+
+    }      "source": "/app",
+
+  ],      "destination": "/app.html"
+
+  "env": {    },
+
+    "KITE_API_KEY": "@kite_api_key",    {
+
+    "KITE_ACCESS_TOKEN": "@kite_access_token",      "source": "/confirm",
+
+    "PORT": "5000"      "destination": "/confirm.html"
+
+  }    }
+
+}  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options", 
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    }
+  ]
+}
