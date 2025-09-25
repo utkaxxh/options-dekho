@@ -3,14 +3,6 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 
-interface OptionTrackerProps {
-  kiteCredentials: {
-    apiKey: string
-    apiSecret: string
-    accessToken?: string
-  }
-}
-
 interface OptionData {
   last_price: number
   depth: {
@@ -21,7 +13,7 @@ interface OptionData {
   oi: number
 }
 
-export default function OptionTracker({ kiteCredentials }: OptionTrackerProps) {
+export default function OptionTracker() {
   const [symbol, setSymbol] = useState('')
   const [strike, setStrike] = useState('')
   const [expiry, setExpiry] = useState('')
@@ -31,6 +23,7 @@ export default function OptionTracker({ kiteCredentials }: OptionTrackerProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [autoUpdate, setAutoUpdate] = useState(false)
+  const [showTokenInput, setShowTokenInput] = useState(false)
 
   const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
     'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -43,6 +36,25 @@ export default function OptionTracker({ kiteCredentials }: OptionTrackerProps) {
     const month = monthNames[expiryDate.getMonth()]
     
     return `${symbol.toUpperCase()}${year}${month}${strike}PE`
+  }
+
+  const initiateKiteLogin = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const response = await axios.get('/api/kite/login-url')
+      if (response.data.loginUrl) {
+        // Open login URL in new window
+        window.open(response.data.loginUrl, '_blank', 'width=600,height=600')
+        setShowTokenInput(true)
+        setError('Please complete the login in the popup window and copy the request token from the URL')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to initiate Kite login')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const generateAccessToken = async () => {
@@ -119,26 +131,47 @@ export default function OptionTracker({ kiteCredentials }: OptionTrackerProps) {
 
   return (
     <div className="space-y-6">
-      {/* Access Token Section */}
+      {/* Kite Authentication Section */}
       {!accessToken && (
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Generate Access Token</h3>
-          <div className="flex space-x-4">
-            <input
-              type="text"
-              placeholder="Enter request token from Kite login URL"
-              value={requestToken}
-              onChange={(e) => setRequestToken(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-            <button
-              onClick={generateAccessToken}
-              disabled={loading}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50"
-            >
-              Generate Token
-            </button>
-          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Kite Authentication</h3>
+          
+          {!showTokenInput ? (
+            <div className="text-center">
+              <p className="text-gray-600 mb-4">
+                Authenticate with Zerodha Kite to access real-time market data
+              </p>
+              <button
+                onClick={initiateKiteLogin}
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium disabled:opacity-50"
+              >
+                {loading ? 'Setting up...' : 'Authenticate with Kite'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-blue-600">
+                Complete the login in the popup window and paste the request token below:
+              </p>
+              <div className="flex space-x-4">
+                <input
+                  type="text"
+                  placeholder="Enter request token from Kite login URL"
+                  value={requestToken}
+                  onChange={(e) => setRequestToken(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button
+                  onClick={generateAccessToken}
+                  disabled={loading || !requestToken}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50"
+                >
+                  Generate Access Token
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
