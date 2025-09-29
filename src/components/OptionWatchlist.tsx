@@ -66,15 +66,17 @@ export default function OptionWatchlist() {
 
   const resolveAll = async () => {
     // Resolve only complete rows and preserve incomplete rows as-is
+    let changed = false
     const updated: WatchlistRow[] = await Promise.all(
       rows.map(async (r: WatchlistRow) => {
-        if (!r.symbol || !r.strike || !r.expiry) return r
+        if (!r.symbol || !r.strike || !r.expiry || (r.tradingsymbol && r.instrument_token != null)) return r
         try {
           const resp = await axios.get('/api/kite/instruments', {
             params: { user_id: userId, symbol: r.symbol, strike: r.strike, expiry: r.expiry }
           })
           const inst = resp.data.instrument
           if (inst?.tradingsymbol && inst?.instrument_token != null) {
+            changed = true
             return { ...r, tradingsymbol: inst.tradingsymbol, instrument_token: inst.instrument_token }
           }
           return r
@@ -85,8 +87,12 @@ export default function OptionWatchlist() {
         }
       })
     )
-    await replaceAll(updated)
-    return updated
+    if (changed) {
+      // Only persist if at least one row actually changed to reduce unnecessary full list flashes
+      await replaceAll(updated)
+      return updated
+    }
+    return rows
   }
 
   const fetchQuotes = async () => {
@@ -104,16 +110,21 @@ export default function OptionWatchlist() {
       for (const ins of instruments) url.searchParams.append('instruments', ins)
       const resp = await axios.get(url.toString())
       const data = resp.data.data as Record<string, any>
-      const out: Record<string, QuoteRow> = {}
-      for (const r of targets) {
-        const key = `NFO:${r.tradingsymbol}`
-        const q = data[key]
-        const ltp = q?.last_price
-        const strikeNum = Number(r.strike)
-        const yieldPct = ltp && strikeNum ? (ltp / strikeNum) * 100 : undefined
-        out[r.id] = { ...r, ltp, yieldPct }
-      }
-      setQuotes(out)
+      setQuotes(prev => {
+        const next = { ...prev }
+        for (const r of targets) {
+          if (!r.tradingsymbol) continue
+          const key = `NFO:${r.tradingsymbol}`
+            const q = data[key]
+            const ltp = q?.last_price
+            const strikeNum = Number(r.strike)
+            const yieldPct = ltp && strikeNum ? (ltp / strikeNum) * 100 : undefined
+            const existing = next[r.id]
+            // Preserve previous values while updating changed fields to reduce UI churn
+            next[r.id] = { ...(existing || r), ltp, yieldPct }
+        }
+        return next
+      })
     } catch (e: any) {
       setError(e.response?.data?.error || 'Failed to fetch quotes')
     } finally {
