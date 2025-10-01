@@ -69,7 +69,8 @@ export default function OptionWatchlist() {
     let changed = false
     const updated: WatchlistRow[] = await Promise.all(
       rows.map(async (r: WatchlistRow) => {
-        if (!r.symbol || !r.strike || !r.expiry || (r.tradingsymbol && r.instrument_token != null)) return r
+        // If we already have a tradingsymbol (fallback or resolved), skip further resolution attempts
+        if (!r.symbol || !r.strike || !r.expiry || r.tradingsymbol) return r
         try {
           const resp = await axios.get('/api/kite/instruments', {
             params: { user_id: userId, symbol: r.symbol, strike: r.strike, expiry: r.expiry }
@@ -81,8 +82,11 @@ export default function OptionWatchlist() {
           }
           return r
         } catch (e: any) {
-          // Keep the row and surface the error, but don't drop it
-          setError(e.response?.data?.error || 'Failed to resolve instrument')
+          // Suppress repeated 404 noise; only surface unexpected errors
+          const status = e.response?.status
+            if (status && status !== 404) {
+              setError(e.response?.data?.error || 'Failed to resolve instrument')
+            }
           return r
         }
       })
