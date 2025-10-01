@@ -35,6 +35,8 @@ export default function FnoUniversePage() {
   const [loading, setLoading] = useState(false)
   const [auto, setAuto] = useState(true)
   const [error, setError] = useState('')
+  const [sortField, setSortField] = useState<'yield' | 'delta'>('yield')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -147,13 +149,24 @@ export default function FnoUniversePage() {
   }, [userId, auto])
 
   const display = useMemo(() => {
-    return rows.slice().sort((a, b) => {
-      const ya = a.yieldPct ?? -Infinity
-      const yb = b.yieldPct ?? -Infinity
-      if (yb !== ya) return yb - ya
+    const arr = rows.slice()
+    arr.sort((a, b) => {
+      const getVal = (r: Row) => {
+        if (sortField === 'yield') return r.yieldPct
+        return r.strikeDiffPct
+      }
+      const va = getVal(a)
+      const vb = getVal(b)
+      const aNum = va == null ? (sortDir === 'desc' ? -Infinity : Infinity) : va
+      const bNum = vb == null ? (sortDir === 'desc' ? -Infinity : Infinity) : vb
+      if (aNum !== bNum) {
+        return sortDir === 'desc' ? (bNum - aNum) : (aNum - bNum)
+      }
+      // Secondary: underlying alpha
       return a.underlying.localeCompare(b.underlying)
     })
-  }, [rows])
+    return arr
+  }, [rows, sortField, sortDir])
 
   const strikeDeltaClass = (v?: number) => {
     if (v == null) return 'text-gray-500'
@@ -200,9 +213,43 @@ export default function FnoUniversePage() {
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Stock</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Spot</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≤ Spot</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Strike Δ% (Spot)</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sortField === 'delta') {
+                      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                    } else {
+                      setSortField('delta'); setSortDir('desc')
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 group"
+                >
+                  Strike Δ% (Spot)
+                  {sortField === 'delta' && (
+                    <span className="text-[10px] text-gray-500 group-hover:text-gray-700">{sortDir === 'desc' ? '▼' : '▲'}</span>
+                  )}
+                </button>
+              </th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">LTP</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Yield %</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sortField === 'yield') {
+                      setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+                    } else {
+                      setSortField('yield'); setSortDir('desc')
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 group"
+                >
+                  Yield %
+                  {sortField === 'yield' && (
+                    <span className="text-[10px] text-gray-500 group-hover:text-gray-700">{sortDir === 'desc' ? '▼' : '▲'}</span>
+                  )}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
