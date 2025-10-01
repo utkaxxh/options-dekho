@@ -200,13 +200,14 @@ export default function FnoUniversePage() {
         </div>
       </div>
       {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
-      <div className="overflow-x-auto relative">
+      <div className="overflow-x-auto overflow-y-auto relative max-h-[70vh] sm:max-h-[75vh] scrollbar-thin">
+        {/* Sticky header: we make the thead sticky instead of each th (except first column still needs left freeze) */}
         <table className="min-w-full table-auto border-collapse">
-          <thead>
-            <tr className="bg-gray-50">
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 sticky left-0 top-0 z-30 bg-gray-50">Stock</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 sticky top-0 bg-gray-50">Spot</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 sticky top-0 bg-gray-50">Closest Strike ≤ Spot</th>
+          <thead className="sticky top-0 z-40 bg-gray-50 shadow-sm">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 sticky left-0 top-0 z-50 bg-gray-50">Stock</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Spot</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≤ Spot</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">
                 <button
                   type="button"
