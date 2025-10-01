@@ -101,30 +101,72 @@ export default function OptionWatchlist() {
     setLoading(true)
     try {
       // Ensure we have resolved tradingsymbols
-  const withTsym = rows.every((r: WatchlistRow) => r.tradingsymbol)
-  const targets: WatchlistRow[] = withTsym ? rows : await resolveAll()
-  const instruments = targets.filter((t: WatchlistRow) => t.tradingsymbol).map((t: WatchlistRow) => `NFO:${t.tradingsymbol}`)
+      const withTsym = rows.every((r: WatchlistRow) => r.tradingsymbol)
+      const targets: WatchlistRow[] = withTsym ? rows : await resolveAll()
+
+      // Fallback: generate tradingsymbol pattern if still missing after resolve
+      const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+      const buildFallbackTsym = (r: WatchlistRow): string | null => {
+        if (r.tradingsymbol) return r.tradingsymbol
+        if (!r.symbol || !r.strike || !r.expiry) return null
+        const d = new Date(r.expiry)
+        if (isNaN(d.getTime())) return null
+        const yy = d.getFullYear().toString().slice(-2)
+        const mm = MONTHS[d.getMonth()]
+        return `${r.symbol.toUpperCase()}${yy}${mm}${r.strike}PE`
+      }
+
+      const instrumentsSet = new Set<string>()
+      const tsymMap: Record<string, string> = {} // row.id -> (existing or fallback) tradingsymbol
+      for (const r of targets) {
+        const ts = buildFallbackTsym(r)
+        if (ts) {
+          tsymMap[r.id] = r.tradingsymbol || ts
+          instrumentsSet.add(`NFO:${r.tradingsymbol || ts}`)
+        }
+      }
+      const instruments = Array.from(instrumentsSet)
       if (instruments.length === 0) return
-  const url = new URL('/api/kite/quotes', window.location.origin)
-  url.searchParams.append('user_id', userId as string)
+      const url = new URL('/api/kite/quotes', window.location.origin)
+      url.searchParams.append('user_id', userId as string)
       for (const ins of instruments) url.searchParams.append('instruments', ins)
       const resp = await axios.get(url.toString())
       const data = resp.data.data as Record<string, any>
+      // Track if we can now persist newly inferred tradingsymbols (where missing before but quote succeeded)
+      let needPersist = false
+      const updatedRows: WatchlistRow[] = targets.map(r => ({ ...r }))
       setQuotes(prev => {
         const next = { ...prev }
         for (const r of targets) {
-          if (!r.tradingsymbol) continue
-          const key = `NFO:${r.tradingsymbol}`
-            const q = data[key]
-            const ltp = q?.last_price
-            const strikeNum = Number(r.strike)
-            const yieldPct = ltp && strikeNum ? (ltp / strikeNum) * 100 : undefined
-            const existing = next[r.id]
-            // Preserve previous values while updating changed fields to reduce UI churn
-            next[r.id] = { ...(existing || r), ltp, yieldPct }
+          const derivedTs = tsymMap[r.id]
+          if (!derivedTs) continue
+          const key = `NFO:${derivedTs}`
+          const q = data[key]
+          if (!q) continue
+          const ltp = q?.last_price
+          const strikeNum = Number(r.strike)
+          const yieldPct = ltp && strikeNum ? (ltp / strikeNum) * 100 : undefined
+          const existing = next[r.id]
+          next[r.id] = { ...(existing || r), ltp, yieldPct }
+          // If original row lacked tradingsymbol but fallback produced a valid quote, mark for persistence
+          if (!r.tradingsymbol && derivedTs) {
+            needPersist = true
+            const idx = updatedRows.findIndex(u => u.id === r.id)
+            if (idx >= 0) {
+              updatedRows[idx] = { ...updatedRows[idx], tradingsymbol: derivedTs }
+            }
+          }
         }
         return next
       })
+      if (needPersist) {
+        // Persist newly inferred tradingsymbols without forcing a full re-resolve cycle
+        try {
+          await replaceAll(updatedRows)
+        } catch (e) {
+          // Non-fatal; ignore
+        }
+      }
     } catch (e: any) {
       setError(e.response?.data?.error || 'Failed to fetch quotes')
     } finally {
