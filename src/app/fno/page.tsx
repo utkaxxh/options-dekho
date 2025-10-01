@@ -242,14 +242,20 @@ export default function FnoUniversePage() {
         <table className="min-w-full table-auto border-collapse">
           <thead className="sticky top-0 z-40 bg-gray-50 shadow-sm">
             <tr>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≥ Spot (Call)</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Call Strike Δ% (Spot)</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Call LTP</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Call Yield %</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 sticky left-0 top-0 z-50 bg-gray-50">Stock</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Spot</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≤ Spot (Put)</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">
+              <th colSpan={4} className="px-3 py-2 text-center text-[10px] font-semibold tracking-wide text-gray-700 border-b border-gray-200">CALLS</th>
+              <th rowSpan={2} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 sticky left-0 top-0 z-50 bg-gray-50 align-bottom">Stock</th>
+              <th rowSpan={2} className="px-3 py-2 text-right text-xs font-semibold text-gray-600 align-bottom">Spot</th>
+              <th colSpan={4} className="px-3 py-2 text-center text-[10px] font-semibold tracking-wide text-gray-700 border-b border-gray-200">PUTS</th>
+            </tr>
+            <tr>
+              {/* Call columns */}
+              <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-600">Strike ≥ Spot</th>
+              <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-600">Δ% (Spot)</th>
+              <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-600">LTP</th>
+              <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-600">Yield %</th>
+              {/* Put columns */}
+              <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-600">Strike ≤ Spot</th>
+              <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-600">
                 <button
                   type="button"
                   onClick={() => {
@@ -261,14 +267,14 @@ export default function FnoUniversePage() {
                   }}
                   className="inline-flex items-center gap-1 group"
                 >
-                  Strike Δ% (Spot)
+                  Δ% (Spot)
                   {sortField === 'delta' && (
                     <span className="text-[10px] text-gray-500 group-hover:text-gray-700">{sortDir === 'desc' ? '▼' : '▲'}</span>
                   )}
                 </button>
               </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">LTP</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">
+              <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-600">LTP</th>
+              <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-600">
                 <button
                   type="button"
                   onClick={() => {
