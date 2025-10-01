@@ -57,6 +57,13 @@ export default function FnoUniversePage() {
       // Build a map underlying -> chosen strike
       const instrumentsForQuotes = new Set<string>()
       const strikeMap: Record<string, number> = {}
+      const spotNameMap: Record<string, string> = {
+        'NIFTY': 'NIFTY 50',
+        'BANKNIFTY': 'NIFTY BANK',
+        // Common other index style symbols (extend as needed)
+        'FINNIFTY': 'FINNIFTY',
+        'MIDCPNIFTY': 'NIFTY MIDCAP SELECT'
+      }
       for (const rec of data) {
         // We need spot first to determine closest lower strike; fetch spot later, so choose provisional strike = min strike for now
         const sorted = rec.options.slice().sort((a,b) => a.strike - b.strike)
@@ -68,7 +75,8 @@ export default function FnoUniversePage() {
       }
       // Compose instruments list (spots + provisional options)
       for (const u of Object.keys(strikeMap)) {
-        instrumentsForQuotes.add(`NSE:${u}`)
+        const spotName = spotNameMap[u] || u
+        instrumentsForQuotes.add(`NSE:${spotName}`)
       }
       // initial quote fetch
       if (instrumentsForQuotes.size === 0) return
@@ -82,7 +90,8 @@ export default function FnoUniversePage() {
   const finalRows: Row[] = []
   const optionInstruments = new Set<string>()
       for (const rec of data) {
-        const spotKey = `NSE:${rec.underlying}`
+  const spotName = spotNameMap[rec.underlying] || rec.underlying
+  const spotKey = `NSE:${spotName}`
         const spot = spotData[spotKey]?.last_price
         let chosen: OptionEntry | null = null
         if (spot) {

@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
   // Validate each instrument "EXCH:SYMBOL"
   // Some tradingsymbols include hyphens (e.g., BAJAJ-AUTO), ampersands, dots, or underscores.
   // Allow a broader safe character set after the colon.
-  const instrumentPattern = /^[A-Z]+:[A-Z0-9][A-Z0-9_.\-&]*$/
+  // Allow spaces inside tradingsymbols (e.g., NIFTY 50, NIFTY BANK) plus ., _, -, &
+  const instrumentPattern = /^[A-Z]+:[A-Z0-9][A-Z0-9 _.\-&]*$/
     for (const ins of instruments) {
       if (!instrumentPattern.test(ins)) {
         return NextResponse.json({ error: `Invalid instrument format: ${ins}` }, { status: 400 })
