@@ -9,6 +9,7 @@ type OptionEntry = {
   strike: number
   instrument_token: number
   expiry: string
+  instrument_type: 'CE' | 'PE'
 }
 
 type UnderlyingRecord = {
@@ -19,12 +20,20 @@ type UnderlyingRecord = {
 
 type Row = {
   underlying: string
+  // Put side (closest lower or equal)
   strike: number | null
-  expiry: string
   tradingsymbol?: string
   strikeDiffPct?: number
   ltp?: number
   yieldPct?: number
+  // Call side (closest higher or equal)
+  callStrike?: number | null
+  callTradingsymbol?: string
+  callStrikeDiffPct?: number
+  callLtp?: number
+  callYieldPct?: number
+  // Common
+  expiry: string
   spot?: number
 }
 
@@ -50,9 +59,9 @@ export default function FnoUniversePage() {
     setLoading(true)
     try {
       const resp = await axios.get('/api/kite/fno-universe', { params: { user_id: userId } })
-      const data: UnderlyingRecord[] = resp.data.data || []
-      // We'll fetch quotes for: all underlying spot symbols + selected strikes' PE options
-      const prepared: Row[] = data.map(rec => ({ underlying: rec.underlying, expiry: rec.expiry, strike: null }))
+  const data: UnderlyingRecord[] = resp.data.data || []
+  // We'll fetch quotes for: all underlying spot symbols + selected strikes' PE & CE options (after selection phase)
+  const prepared: Row[] = data.map(rec => ({ underlying: rec.underlying, expiry: rec.expiry, strike: null }))
       setRows(prepared)
       // Build a map underlying -> chosen strike
       const instrumentsForQuotes = new Set<string>()
@@ -86,42 +95,59 @@ export default function FnoUniversePage() {
       const spotResp = await axios.get(quoteUrl.toString())
       const spotData = spotResp.data.data as Record<string, any>
 
-      // Now determine closest lower strike using actual spot
-  const finalRows: Row[] = []
-  const optionInstruments = new Set<string>()
+      // Now determine closest put (<= spot) and closest call (>= spot)
+      const finalRows: Row[] = []
+      const optionInstruments = new Set<string>()
       for (const rec of data) {
   const spotName = spotNameMap[rec.underlying] || rec.underlying
   const spotKey = `NSE:${spotName}`
         const spot = spotData[spotKey]?.last_price
-        let chosen: OptionEntry | null = null
+        // Separate puts and calls
+        const puts = rec.options.filter(o => o.instrument_type === 'PE')
+        const calls = rec.options.filter(o => o.instrument_type === 'CE')
+
+        let chosenPut: OptionEntry | null = null
+        let chosenCall: OptionEntry | null = null
+
         if (spot) {
-          // pick highest strike <= spot; fallback to lowest strike if all above
-          const candidates = rec.options.filter(o => o.strike <= spot).sort((a,b) => b.strike - a.strike)
-          if (candidates.length > 0) chosen = candidates[0]
-          else {
-            const asc = rec.options.slice().sort((a,b) => a.strike - b.strike)
-            chosen = asc[0] || null
+          // Put: highest strike <= spot (else lowest strike)
+          if (puts.length) {
+            const putCandidates = puts.filter(o => o.strike <= spot).sort((a,b) => b.strike - a.strike)
+            if (putCandidates.length > 0) chosenPut = putCandidates[0]
+            else chosenPut = puts.slice().sort((a,b) => a.strike - b.strike)[0] || null
           }
+          // Call: lowest strike >= spot (else highest strike)
+            if (calls.length) {
+              const callCandidates = calls.filter(o => o.strike >= spot).sort((a,b) => a.strike - b.strike)
+              if (callCandidates.length > 0) chosenCall = callCandidates[0]
+              else chosenCall = calls.slice().sort((a,b) => b.strike - a.strike)[0] || null
+            }
         } else {
-          // no spot -> lowest strike
-            const asc = rec.options.slice().sort((a,b) => a.strike - b.strike)
-            chosen = asc[0] || null
+          // No spot: just pick lowest strike for put & call (if present)
+          if (puts.length) chosenPut = puts.slice().sort((a,b)=> a.strike - b.strike)[0] || null
+          if (calls.length) chosenCall = calls.slice().sort((a,b)=> a.strike - b.strike)[0] || null
         }
-        if (chosen) {
-          optionInstruments.add(`NFO:${chosen.tradingsymbol}`)
-          const strikeDiffPct = (spot && chosen.strike) ? ((chosen.strike - spot) / spot) * 100 : undefined
+
+        if (chosenPut || chosenCall) {
+          if (chosenPut) optionInstruments.add(`NFO:${chosenPut.tradingsymbol}`)
+          if (chosenCall) optionInstruments.add(`NFO:${chosenCall.tradingsymbol}`)
+          const putStrikeDiffPct = (spot && chosenPut?.strike) ? ((chosenPut.strike - spot) / spot) * 100 : undefined
+          const callStrikeDiffPct = (spot && chosenCall?.strike) ? ((chosenCall.strike - spot) / spot) * 100 : undefined
           finalRows.push({
             underlying: rec.underlying,
-            strike: chosen.strike,
             expiry: rec.expiry,
-            tradingsymbol: chosen.tradingsymbol,
             spot,
-            strikeDiffPct,
+            strike: chosenPut?.strike ?? null,
+            tradingsymbol: chosenPut?.tradingsymbol,
+            strikeDiffPct: putStrikeDiffPct,
+            callStrike: chosenCall?.strike ?? null,
+            callTradingsymbol: chosenCall?.tradingsymbol,
+            callStrikeDiffPct: callStrikeDiffPct,
           })
         }
       }
 
-      // Fetch option quotes
+      // Fetch option quotes (both put & call chosen)
       if (optionInstruments.size > 0) {
         const optUrl = new URL('/api/kite/quotes', window.location.origin)
         optUrl.searchParams.append('user_id', userId)
@@ -129,14 +155,25 @@ export default function FnoUniversePage() {
         const optResp = await axios.get(optUrl.toString())
         const optData = optResp.data.data as Record<string, any>
         for (const row of finalRows) {
-          if (!row.tradingsymbol) continue
-          const key = `NFO:${row.tradingsymbol}`
-          const q = optData[key]
-          if (!q) continue
-          const ltp = q?.last_price
-          row.ltp = ltp
-          if (ltp && row.strike) {
-            row.yieldPct = (ltp / row.strike) * 100
+          // Put side
+          if (row.tradingsymbol) {
+            const pKey = `NFO:${row.tradingsymbol}`
+            const pq = optData[pKey]
+            if (pq) {
+              const pLtp = pq?.last_price
+              row.ltp = pLtp
+              if (pLtp && row.strike) row.yieldPct = (pLtp / row.strike) * 100
+            }
+          }
+          // Call side
+          if (row.callTradingsymbol) {
+            const cKey = `NFO:${row.callTradingsymbol}`
+            const cq = optData[cKey]
+            if (cq) {
+              const cLtp = cq?.last_price
+              row.callLtp = cLtp
+              if (cLtp && row.callStrike) row.callYieldPct = (cLtp / row.callStrike) * 100
+            }
           }
         }
       }
@@ -205,9 +242,13 @@ export default function FnoUniversePage() {
         <table className="min-w-full table-auto border-collapse">
           <thead className="sticky top-0 z-40 bg-gray-50 shadow-sm">
             <tr>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≥ Spot (Call)</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Call Strike Δ% (Spot)</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Call LTP</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Call Yield %</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 sticky left-0 top-0 z-50 bg-gray-50">Stock</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Spot</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≤ Spot</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≤ Spot (Put)</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">
                 <button
                   type="button"
@@ -249,20 +290,20 @@ export default function FnoUniversePage() {
           </thead>
           <tbody>
             {display.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-6 text-center text-sm text-gray-500">{loading ? 'Loading universe...' : 'No data'}</td></tr>
+              <tr><td colSpan={10} className="px-3 py-6 text-center text-sm text-gray-500">{loading ? 'Loading universe...' : 'No data'}</td></tr>
             )}
             {display.map(r => (
               <tr key={r.underlying} className="border-b last:border-0">
+                <td className="px-3 py-2 text-right tabular-nums">{r.callStrike ?? '-'}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-red-600 font-medium">{r.callStrikeDiffPct != null ? r.callStrikeDiffPct.toFixed(2) : '-'}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.callLtp != null ? r.callLtp.toFixed(2) : '-'}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-green-600 font-medium">{r.callYieldPct != null ? r.callYieldPct.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 bg-white z-20">{r.underlying}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.spot != null ? r.spot.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.strike ?? '-'}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-red-600 font-medium">
-                  {r.strikeDiffPct != null ? r.strikeDiffPct.toFixed(2) : '-'}
-                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-red-600 font-medium">{r.strikeDiffPct != null ? r.strikeDiffPct.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.ltp != null ? r.ltp.toFixed(2) : '-'}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-green-600 font-medium">
-                  {r.yieldPct != null ? r.yieldPct.toFixed(2) : '-'}
-                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-green-600 font-medium">{r.yieldPct != null ? r.yieldPct.toFixed(2) : '-'}</td>
               </tr>
             ))}
           </tbody>

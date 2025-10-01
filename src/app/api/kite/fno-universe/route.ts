@@ -10,6 +10,7 @@ type OptionEntry = {
   strike: number
   instrument_token: number
   expiry: string
+  instrument_type: 'CE' | 'PE'
 }
 
 type UnderlyingRecord = {
@@ -78,7 +79,8 @@ export async function GET(request: NextRequest) {
       const parts = line.split(',')
       if (parts.length < cols.length) continue
       if (parts[idx.exchange] !== 'NFO') continue
-      if (parts[idx.instrument_type] !== 'PE') continue // only puts per requirement
+      const instType = parts[idx.instrument_type]
+      if (instType !== 'PE' && instType !== 'CE') continue // keep only options (puts & calls)
       const tsym = parts[idx.tradingsymbol]
       const strike = Number(parts[idx.strike])
       const expiry = parts[idx.expiry]
@@ -93,7 +95,7 @@ export async function GET(request: NextRequest) {
       const underlying = rootMatch[0]
       if (!map[underlying]) map[underlying] = {}
       if (!map[underlying][expiry]) map[underlying][expiry] = []
-      map[underlying][expiry].push({ tradingsymbol: tsym, strike, instrument_token: token, expiry })
+      map[underlying][expiry].push({ tradingsymbol: tsym, strike, instrument_token: token, expiry, instrument_type: instType as 'CE' | 'PE' })
     }
 
     const result: UnderlyingRecord[] = []
