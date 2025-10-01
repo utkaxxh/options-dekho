@@ -17,6 +17,8 @@ type Row = {
 type QuoteRow = Row & {
   ltp?: number
   yieldPct?: number
+  spot?: number
+  strikeDiffPct?: number
 }
 
 export default function OptionWatchlist() {
@@ -105,8 +107,8 @@ export default function OptionWatchlist() {
     setLoading(true)
     try {
       // Ensure we have resolved tradingsymbols
-      const withTsym = rows.every((r: WatchlistRow) => r.tradingsymbol)
-      const targets: WatchlistRow[] = withTsym ? rows : await resolveAll()
+  const withTsym = rows.every((r: WatchlistRow) => r.tradingsymbol)
+  const targets: WatchlistRow[] = withTsym ? rows : await resolveAll()
 
       // Fallback: generate tradingsymbol pattern if still missing after resolve
       const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
@@ -129,11 +131,19 @@ export default function OptionWatchlist() {
           instrumentsSet.add(`NFO:${r.tradingsymbol || ts}`)
         }
       }
+      // Also add underlying equity symbols (assume NSE first) for spot price; avoid duplicates
+      const underlyingSymbols = new Set<string>()
+      for (const r of targets) {
+        if (r.symbol) underlyingSymbols.add(r.symbol.toUpperCase())
+      }
+      for (const sym of underlyingSymbols) {
+        instrumentsSet.add(`NSE:${sym}`)
+      }
       const instruments = Array.from(instrumentsSet)
       if (instruments.length === 0) return
       const url = new URL('/api/kite/quotes', window.location.origin)
       url.searchParams.append('user_id', userId as string)
-      for (const ins of instruments) url.searchParams.append('instruments', ins)
+  for (const ins of instruments) url.searchParams.append('instruments', ins)
       const resp = await axios.get(url.toString())
       const data = resp.data.data as Record<string, any>
       // Track if we can now persist newly inferred tradingsymbols (where missing before but quote succeeded)
@@ -150,8 +160,12 @@ export default function OptionWatchlist() {
           const ltp = q?.last_price
           const strikeNum = Number(r.strike)
           const yieldPct = ltp && strikeNum ? (ltp / strikeNum) * 100 : undefined
+          // Spot lookup (prefer NSE; could add BSE fallback later)
+          const spotKey = `NSE:${r.symbol?.toUpperCase?.()}`
+          const spotVal = data[spotKey]?.last_price
+          const strikeDiffPct = spotVal && strikeNum ? ((strikeNum - spotVal) / spotVal) * 100 : undefined
           const existing = next[r.id]
-          next[r.id] = { ...(existing || r), ltp, yieldPct }
+          next[r.id] = { ...(existing || r), ltp, yieldPct, spot: spotVal, strikeDiffPct }
           // If original row lacked tradingsymbol but fallback produced a valid quote, mark for persistence
           if (!r.tradingsymbol && derivedTs) {
             needPersist = true
@@ -213,6 +227,7 @@ export default function OptionWatchlist() {
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Strike</th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Expiry (YYYY-MM-DD)</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">LTP</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Strike Δ% (Spot)</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Yield %</th>
               <th className="px-3 py-2"></th>
             </tr>
@@ -237,6 +252,7 @@ export default function OptionWatchlist() {
                     <span className="w-40 inline-block px-2 py-1 border rounded bg-gray-50 text-gray-700 select-text">{r.expiry}</span>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{q?.ltp?.toFixed(2) ?? '-'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{q?.strikeDiffPct != null ? q.strikeDiffPct.toFixed(2) : '-'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{q?.yieldPct != null ? q.yieldPct.toFixed(2) : '-'}</td>
                   <td className="px-3 py-2 text-right">
                     <button type="button" onClick={() => removeRowAndQuote(r.id)} className="text-red-600 hover:text-red-700 text-sm">Remove</button>
@@ -264,13 +280,19 @@ export default function OptionWatchlist() {
                   </div>
                   <button type="button" onClick={() => removeRowAndQuote(r.id)} className="text-red-600 hover:text-red-700 text-xs">Remove</button>
                 </div>
-                <div className="mt-2 flex justify-between text-sm">
-                  <div className="text-gray-600">LTP</div>
-                  <div className="font-semibold tabular-nums">{q?.ltp?.toFixed(2) ?? '-'}</div>
-                </div>
-                <div className="mt-1 flex justify-between text-sm">
-                  <div className="text-gray-600">Yield %</div>
-                  <div className="font-semibold tabular-nums">{q?.yieldPct != null ? q.yieldPct.toFixed(2) : '-'}</div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                  <div className="flex flex-col items-end">
+                    <div className="text-gray-600">LTP</div>
+                    <div className="font-semibold tabular-nums">{q?.ltp?.toFixed(2) ?? '-'}</div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <div className="text-gray-600">Strike Δ%</div>
+                    <div className="font-semibold tabular-nums">{q?.strikeDiffPct != null ? q.strikeDiffPct.toFixed(2) : '-'}</div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <div className="text-gray-600">Yield %</div>
+                    <div className="font-semibold tabular-nums">{q?.yieldPct != null ? q.yieldPct.toFixed(2) : '-'}</div>
+                  </div>
                 </div>
               </div>
             )
