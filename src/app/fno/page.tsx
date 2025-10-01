@@ -60,8 +60,8 @@ export default function FnoUniversePage() {
       const spotNameMap: Record<string, string> = {
         'NIFTY': 'NIFTY 50',
         'BANKNIFTY': 'NIFTY BANK',
-        // Common other index style symbols (extend as needed)
-        'FINNIFTY': 'FINNIFTY',
+        // FINNIFTY underlying corresponds to the NIFTY Financial Services index symbol
+        'FINNIFTY': 'NIFTY FIN SERVICE',
         'MIDCPNIFTY': 'NIFTY MIDCAP SELECT'
       }
       for (const rec of data) {

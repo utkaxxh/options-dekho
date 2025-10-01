@@ -17,16 +17,20 @@ create table if not exists public.watchlist_rows (
 alter table public.watchlist_rows enable row level security;
 
 -- Policies
-create policy if not exists "watchlist_select_own" on public.watchlist_rows
+drop policy if exists "watchlist_select_own" on public.watchlist_rows;
+create policy "watchlist_select_own" on public.watchlist_rows
   for select using (auth.uid() = user_id);
 
-create policy if not exists "watchlist_insert_own" on public.watchlist_rows
+drop policy if exists "watchlist_insert_own" on public.watchlist_rows;
+create policy "watchlist_insert_own" on public.watchlist_rows
   for insert with check (auth.uid() = user_id);
 
-create policy if not exists "watchlist_update_own" on public.watchlist_rows
+drop policy if exists "watchlist_update_own" on public.watchlist_rows;
+create policy "watchlist_update_own" on public.watchlist_rows
   for update using (auth.uid() = user_id);
 
-create policy if not exists "watchlist_delete_own" on public.watchlist_rows
+drop policy if exists "watchlist_delete_own" on public.watchlist_rows;
+create policy "watchlist_delete_own" on public.watchlist_rows
   for delete using (auth.uid() = user_id);
 
 -- Trigger to maintain updated_at
@@ -38,6 +42,7 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists set_watchlist_rows_updated_at on public.watchlist_rows;
 create trigger set_watchlist_rows_updated_at
 before update on public.watchlist_rows
 for each row execute function public.set_updated_at();
