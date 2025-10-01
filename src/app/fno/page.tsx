@@ -21,6 +21,7 @@ type Row = {
   underlying: string
   strike: number | null
   expiry: string
+  tradingsymbol?: string
   strikeDiffPct?: number
   ltp?: number
   yieldPct?: number
@@ -76,8 +77,8 @@ export default function FnoUniversePage() {
       const spotData = spotResp.data.data as Record<string, any>
 
       // Now determine closest lower strike using actual spot
-      const finalRows: Row[] = []
-      const optionInstruments = new Set<string>()
+  const finalRows: Row[] = []
+  const optionInstruments = new Set<string>()
       for (const rec of data) {
         const spotKey = `NSE:${rec.underlying}`
         const spot = spotData[spotKey]?.last_price
@@ -102,6 +103,7 @@ export default function FnoUniversePage() {
             underlying: rec.underlying,
             strike: chosen.strike,
             expiry: rec.expiry,
+            tradingsymbol: chosen.tradingsymbol,
             spot,
             strikeDiffPct,
           })
@@ -116,18 +118,14 @@ export default function FnoUniversePage() {
         const optResp = await axios.get(optUrl.toString())
         const optData = optResp.data.data as Record<string, any>
         for (const row of finalRows) {
-          // derive expected tradingsymbol pattern (we don't store it explicitly) -> find matching by NFO underlying+year+month+strike+PE? Instead approximate by scanning optData keys for strike
-          // Simpler: calculate yield as option LTP / strike * 100 if we can find an option with that strike and expiry in optData (approx)
-          // Since we only requested chosen tradingsymbol, find its key
-          // Attempt direct key match heuristic: options requested were exact chosen.tradingsymbol earlier
-          // We'll map underlying+strike to the first matching key
-          const matchKey = Object.keys(optData).find(k => k.endsWith(`${row.strike}PE`) && k.includes(`:${row.underlying}`))
-          if (matchKey) {
-            const ltp = optData[matchKey]?.last_price
-            row.ltp = ltp
-            if (ltp && row.strike) {
-              row.yieldPct = (ltp / row.strike) * 100
-            }
+          if (!row.tradingsymbol) continue
+          const key = `NFO:${row.tradingsymbol}`
+          const q = optData[key]
+          if (!q) continue
+          const ltp = q?.last_price
+          row.ltp = ltp
+          if (ltp && row.strike) {
+            row.yieldPct = (ltp / row.strike) * 100
           }
         }
       }
