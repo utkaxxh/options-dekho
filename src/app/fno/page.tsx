@@ -158,7 +158,17 @@ export default function FnoUniversePage() {
   return (
     <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <h2 className="text-xl font-semibold text-gray-900">F&O Universe (Nearest Expiry Puts)</h2>
+        <h2 className="text-xl font-semibold text-gray-900">
+          F&O Universe (Nearest Expiry Puts)
+          <span className="block mt-1 text-sm font-normal text-gray-600">
+            {(() => {
+              const exps = Array.from(new Set(rows.map(r => r.expiry))).sort()
+              if (exps.length === 0) return 'Loading…'
+              if (exps.length === 1) return `Expiry: ${exps[0]}`
+              return `Expiries: ${exps.slice(0,3).join(', ')}${exps.length>3?'…':''}`
+            })()}
+          </span>
+        </h2>
         <div className="flex items-center gap-4">
           <label className="flex items-center text-sm">
             <input type="checkbox" className="h-4 w-4 text-blue-600" checked={auto} onChange={e => setAuto(e.target.checked)} />
@@ -173,8 +183,8 @@ export default function FnoUniversePage() {
           <thead>
             <tr className="bg-gray-50">
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Stock</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Spot</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≤ Spot</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Expiry</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Strike Δ% (Spot)</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">LTP</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Yield %</th>
@@ -187,8 +197,8 @@ export default function FnoUniversePage() {
             {display.map(r => (
               <tr key={r.underlying} className="border-b last:border-0">
                 <td className="px-3 py-2 text-sm font-medium text-gray-800">{r.underlying}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.spot != null ? r.spot.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.strike ?? '-'}</td>
-                <td className="px-3 py-2 text-sm text-gray-700">{r.expiry}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.strikeDiffPct != null ? r.strikeDiffPct.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.ltp != null ? r.ltp.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.yieldPct != null ? r.yieldPct.toFixed(2) : '-'}</td>
