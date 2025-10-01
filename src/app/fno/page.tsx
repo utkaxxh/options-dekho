@@ -168,21 +168,6 @@ export default function FnoUniversePage() {
     return arr
   }, [rows, sortField, sortDir])
 
-  const strikeDeltaClass = (v?: number) => {
-    if (v == null) return 'text-gray-500'
-    if (v > 0) return 'text-green-600 font-medium' // Strike above spot (OTM for put)
-    if (v < 0) return 'text-red-600 font-medium'   // Strike below spot (ITM for put)
-    return 'text-gray-700'
-  }
-
-  const yieldClass = (v?: number) => {
-    if (v == null) return 'text-gray-500'
-    if (v >= 10) return 'text-green-700 font-semibold'
-    if (v >= 5) return 'text-green-600 font-medium'
-    if (v >= 2) return 'text-amber-600 font-medium'
-    return 'text-gray-600'
-  }
-
   return (
     <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -261,11 +246,11 @@ export default function FnoUniversePage() {
                 <td className="px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 bg-white z-20">{r.underlying}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.spot != null ? r.spot.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.strike ?? '-'}</td>
-                <td className={"px-3 py-2 text-right tabular-nums " + strikeDeltaClass(r.strikeDiffPct)}>
+                <td className="px-3 py-2 text-right tabular-nums text-red-600 font-medium">
                   {r.strikeDiffPct != null ? r.strikeDiffPct.toFixed(2) : '-'}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.ltp != null ? r.ltp.toFixed(2) : '-'}</td>
-                <td className={"px-3 py-2 text-right tabular-nums " + yieldClass(r.yieldPct)}>
+                <td className="px-3 py-2 text-right tabular-nums text-green-600 font-medium">
                   {r.yieldPct != null ? r.yieldPct.toFixed(2) : '-'}
                 </td>
               </tr>
