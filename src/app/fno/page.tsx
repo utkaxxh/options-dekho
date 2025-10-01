@@ -147,7 +147,12 @@ export default function FnoUniversePage() {
   }, [userId, auto])
 
   const display = useMemo(() => {
-    return rows.slice().sort((a,b) => a.underlying.localeCompare(b.underlying))
+    return rows.slice().sort((a, b) => {
+      const ya = a.yieldPct ?? -Infinity
+      const yb = b.yieldPct ?? -Infinity
+      if (yb !== ya) return yb - ya
+      return a.underlying.localeCompare(b.underlying)
+    })
   }, [rows])
 
   return (
