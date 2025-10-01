@@ -206,13 +206,13 @@ export default function FnoUniversePage() {
         </div>
       </div>
       {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">{error}</div>}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto relative">
         <table className="min-w-full table-auto border-collapse">
           <thead>
             <tr className="bg-gray-50">
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Stock</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Spot</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">Closest Strike ≤ Spot</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 sticky left-0 top-0 z-30 bg-gray-50">Stock</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 sticky top-0 bg-gray-50">Spot</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 sticky top-0 bg-gray-50">Closest Strike ≤ Spot</th>
               <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600">
                 <button
                   type="button"
@@ -258,7 +258,7 @@ export default function FnoUniversePage() {
             )}
             {display.map(r => (
               <tr key={r.underlying} className="border-b last:border-0">
-                <td className="px-3 py-2 text-sm font-medium text-gray-800">{r.underlying}</td>
+                <td className="px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 bg-white z-20">{r.underlying}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.spot != null ? r.spot.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.strike ?? '-'}</td>
                 <td className={"px-3 py-2 text-right tabular-nums " + strikeDeltaClass(r.strikeDiffPct)}>
