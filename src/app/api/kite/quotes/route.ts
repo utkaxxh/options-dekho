@@ -31,8 +31,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Missing instruments parameter(s)' }, { status: 400 })
     }
 
-    // Validate each instrument "EXCH:SYMBOL"
-    const instrumentPattern = /^[A-Z]+:[A-Z0-9]+$/
+  // Validate each instrument "EXCH:SYMBOL"
+  // Some tradingsymbols include hyphens (e.g., BAJAJ-AUTO), ampersands, dots, or underscores.
+  // Allow a broader safe character set after the colon.
+  const instrumentPattern = /^[A-Z]+:[A-Z0-9][A-Z0-9_.\-&]*$/
     for (const ins of instruments) {
       if (!instrumentPattern.test(ins)) {
         return NextResponse.json({ error: `Invalid instrument format: ${ins}` }, { status: 400 })
