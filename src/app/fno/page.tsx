@@ -44,7 +44,7 @@ export default function FnoUniversePage() {
   const [loading, setLoading] = useState(false)
   const [auto, setAuto] = useState(true)
   const [error, setError] = useState('')
-  const [sortField, setSortField] = useState<'yield' | 'delta'>('yield')
+  const [sortField, setSortField] = useState<'yield' | 'delta' | 'stock'>('yield')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
@@ -197,8 +197,13 @@ export default function FnoUniversePage() {
   const display = useMemo(() => {
     const arr = rows.slice()
     arr.sort((a, b) => {
+      if (sortField === 'stock') {
+        const cmp = a.underlying.localeCompare(b.underlying)
+        return sortDir === 'asc' ? cmp : -cmp
+      }
       const getVal = (r: Row) => {
         if (sortField === 'yield') return r.yieldPct
+        // delta -> put strike diff pct
         return r.strikeDiffPct
       }
       const va = getVal(a)
@@ -208,7 +213,6 @@ export default function FnoUniversePage() {
       if (aNum !== bNum) {
         return sortDir === 'desc' ? (bNum - aNum) : (aNum - bNum)
       }
-      // Secondary: underlying alpha
       return a.underlying.localeCompare(b.underlying)
     })
     return arr
@@ -243,8 +247,25 @@ export default function FnoUniversePage() {
           <thead className="sticky top-0 z-40 bg-gray-50 shadow-sm">
             <tr>
               <th colSpan={4} className="px-3 py-2 text-center text-[10px] font-semibold tracking-wide text-gray-700 border-b border-gray-200">CALLS</th>
-              <th rowSpan={2} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 sticky left-0 top-0 z-50 bg-gray-50 align-bottom">Stock</th>
-              <th rowSpan={2} className="px-3 py-2 text-right text-xs font-semibold text-gray-600 align-bottom">Spot</th>
+              <th rowSpan={2} className="px-3 py-2 text-center text-xs font-semibold text-gray-600 sticky left-0 top-0 z-50 bg-gray-50 align-bottom">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sortField === 'stock') {
+                      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                    } else {
+                      setSortField('stock'); setSortDir('asc')
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 group"
+                >
+                  Stock
+                  {sortField === 'stock' && (
+                    <span className="text-[10px] text-gray-500 group-hover:text-gray-700">{sortDir === 'asc' ? '▲' : '▼'}</span>
+                  )}
+                </button>
+              </th>
+              <th rowSpan={2} className="px-3 py-2 text-center text-xs font-semibold text-gray-600 align-bottom">Spot</th>
               <th colSpan={4} className="px-3 py-2 text-center text-[10px] font-semibold tracking-wide text-gray-700 border-b border-gray-200">PUTS</th>
             </tr>
             <tr>
@@ -304,8 +325,8 @@ export default function FnoUniversePage() {
                 <td className="px-3 py-2 text-right tabular-nums text-red-600 font-medium">{r.callStrikeDiffPct != null ? r.callStrikeDiffPct.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.callLtp != null ? r.callLtp.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-green-600 font-medium">{r.callYieldPct != null ? r.callYieldPct.toFixed(2) : '-'}</td>
-                <td className="px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 bg-white z-20">{r.underlying}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{r.spot != null ? r.spot.toFixed(2) : '-'}</td>
+                <td className="px-3 py-2 text-sm font-medium text-gray-800 sticky left-0 bg-white z-20 text-center">{r.underlying}</td>
+                <td className="px-3 py-2 text-center tabular-nums">{r.spot != null ? r.spot.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.strike ?? '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums text-red-600 font-medium">{r.strikeDiffPct != null ? r.strikeDiffPct.toFixed(2) : '-'}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{r.ltp != null ? r.ltp.toFixed(2) : '-'}</td>
