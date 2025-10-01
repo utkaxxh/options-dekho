@@ -64,14 +64,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
       {/* Hero header */}
-      <header className="max-w-4xl mx-auto text-center mb-10">
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
-          Put LTP Tracker
-        </h1>
-        <p className="mt-3 text-base sm:text-lg text-gray-600">
-          Minimal tool to track real-time Put Option LTP with Zerodha Kite. Sign in to get started.
-        </p>
-      </header>
+      <header className="max-w-4xl mx-auto text-center mb-6" />
 
       <div className="max-w-md mx-auto w-full space-y-8">
         <div className="text-center">

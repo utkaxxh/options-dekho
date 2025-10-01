@@ -37,9 +37,7 @@ export default function Dashboard({ user }: DashboardProps) {
       <nav className="bg-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">Put LTP Tracker</h1>
-            </div>
+            <div className="flex items-center" />
             <div className="flex items-center space-x-4">
               <span className="text-gray-700">Welcome, {user.email}</span>
               <button
