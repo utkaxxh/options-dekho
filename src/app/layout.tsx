@@ -33,15 +33,24 @@ export default function RootLayout({
         <footer className="mt-8 border-t border-gray-200 bg-gray-50 text-xs text-gray-600">
           <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <span>&copy; {new Date().getFullYear()} OptionsDekho</span>
-            <a
-              href="https://docs.google.com/forms/d/e/1FAIpQLSd5N64NizLbgnGbR4tbXqDl-RiU4thfiaBagfV6GYmtBRxSNA/viewform?usp=dialog"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
-            >
-              Give Feedback
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M5 4a1 1 0 011-1h9a1 1 0 011 1v9a1 1 0 11-2 0V6.414l-8.293 8.293a1 1 0 01-1.414-1.414L12.586 5H6a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
-            </a>
+            <div className="flex flex-col items-start gap-2">
+              <a
+                href="https://docs.google.com/forms/d/e/1FAIpQLSd5N64NizLbgnGbR4tbXqDl-RiU4thfiaBagfV6GYmtBRxSNA/viewform?usp=dialog"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Give Feedback
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M5 4a1 1 0 011-1h9a1 1 0 011 1v9a1 1 0 11-2 0V6.414l-8.293 8.293a1 1 0 01-1.414-1.414L12.586 5H6a1 1 0 01-1-1z" clipRule="evenodd" /></svg>
+              </a>
+              <a
+                href="mailto:support@optionsdekho.com?subject=Support%20Request"
+                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Support
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4h16v12H5.17L4 17.17V4zm4 4h8M8 12h5" /></svg>
+              </a>
+            </div>
           </div>
         </footer>
         <Analytics />
