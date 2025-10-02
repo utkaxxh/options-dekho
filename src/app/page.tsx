@@ -10,10 +10,19 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [cardVisible, setCardVisible] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Defer card entrance animation slightly after mount for smoother perception
+  useEffect(() => {
+    if (mounted && !user) {
+      const t = setTimeout(() => setCardVisible(true), 60)
+      return () => clearTimeout(t)
+    }
+  }, [mounted, user])
 
   useEffect(() => {
     if (!mounted) return
@@ -110,8 +119,9 @@ export default function Home() {
         </div>
         {/* Auth Panel */}
         <div className="max-w-sm mx-auto mb-14 relative">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/30 via-indigo-400/30 to-blue-500/30 rounded-xl blur opacity-60" />
-          <div className="relative bg-white/85 backdrop-blur-sm border border-slate-200 rounded-xl shadow-md p-5">
+          <div className={`absolute -inset-0.5 bg-gradient-to-r from-blue-500/30 via-indigo-400/30 to-blue-500/30 rounded-xl blur transition-opacity duration-700 ${cardVisible ? 'opacity-60' : 'opacity-0'}`} />
+          <div className={`relative bg-white/85 backdrop-blur-sm border border-slate-200 rounded-xl shadow-md p-5 transform transition-all duration-500 ease-out ${cardVisible ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-2'}`}>
+            <h2 className="text-base font-semibold text-slate-800 mb-3 tracking-wide">Get Started Now</h2>
             <Auth compact />
           </div>
         </div>
