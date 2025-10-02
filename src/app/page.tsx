@@ -65,7 +65,7 @@ export default function Home() {
             <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" /> Live F&O Option Yields
           </div>
           <h1 className="text-3xl sm:text-5xl font-bold tracking-tight bg-gradient-to-r from-slate-900 via-blue-800 to-slate-900 bg-clip-text text-transparent mb-6 leading-tight">
-            Instant Option Yield Snapshot<br className="hidden sm:block" /> Across the Entire F&O Universe
+            Instant Options Yield Snapshot<br className="hidden sm:block" /> Across the Entire F&O Universe
           </h1>
           <p className="text-base sm:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">
             See the nearest expiry strike alignment in real time: closest out-of-the-money Calls & in-the-money Puts, their premiums and simple yield percentages. Build a focused watchlist for contracts you care about and react with clarity.
@@ -109,11 +109,10 @@ export default function Home() {
           ))}
         </div>
         {/* Auth Panel */}
-        <div className="max-w-lg mx-auto mb-14 relative">
+        <div className="max-w-sm mx-auto mb-14 relative">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/30 via-indigo-400/30 to-blue-500/30 rounded-xl blur opacity-60" />
-          <div className="relative bg-white/80 backdrop-blur-sm border border-slate-200 rounded-xl shadow-md p-6">
-            <p className="text-sm text-slate-600 mb-4">Sign in with your Kite account to unlock live market data & build your watchlist.</p>
-            <Auth />
+          <div className="relative bg-white/85 backdrop-blur-sm border border-slate-200 rounded-xl shadow-md p-5">
+            <Auth compact />
           </div>
         </div>
         <p className="text-[11px] text-slate-500 max-w-2xl mx-auto text-center leading-relaxed">
