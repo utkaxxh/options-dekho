@@ -7,8 +7,17 @@ import TopNav from '@/components/TopNav'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Put LTP - Real-time Option Prices',
-  description: 'Track real-time Put Option LTP using Kite API',
+  title: 'OptionsDekho',
+  description: 'OptionsDekho – Live F&O option yields, strikes and watchlist powered by Kite API',
+  openGraph: {
+    title: 'OptionsDekho',
+    description: 'Live F&O option yields, nearest strikes and custom watchlist',
+  },
+  twitter: {
+    title: 'OptionsDekho',
+    description: 'Live F&O option yields, nearest strikes and custom watchlist',
+    card: 'summary_large_image'
+  }
 }
 
 export default function RootLayout({
@@ -23,7 +32,7 @@ export default function RootLayout({
         <main className="pt-0 min-h-[calc(100vh-140px)]">{children}</main>
         <footer className="mt-8 border-t border-gray-200 bg-gray-50 text-xs text-gray-600">
           <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <span>&copy; {new Date().getFullYear()} Put LTP</span>
+            <span>&copy; {new Date().getFullYear()} OptionsDekho</span>
             <a
               href="https://docs.google.com/forms/d/e/1FAIpQLSd5N64NizLbgnGbR4tbXqDl-RiU4thfiaBagfV6GYmtBRxSNA/viewform?usp=dialog"
               target="_blank"
