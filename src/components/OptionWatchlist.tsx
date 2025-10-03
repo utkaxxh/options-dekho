@@ -204,7 +204,7 @@ export default function OptionWatchlist() {
   return (
     <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <h3 className="text-lg font-medium text-gray-900">Watchlist</h3>
+  <h3 className="text-lg font-medium text-gray-900">Puts Watchlist</h3>
         <div className="flex items-center gap-4">
           <label className="flex items-center">
             <input type="checkbox" className="h-4 w-4 text-blue-600" checked={auto} onChange={e => setAuto(e.target.checked)} />
