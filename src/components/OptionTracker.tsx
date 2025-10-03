@@ -15,6 +15,15 @@ interface OptionData {
   oi: number
 }
 
+// Basic F&O underlying universe (can be replaced later with dynamic fetch)
+const UNDERLYING_SYMBOLS = [
+  'NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY',
+  'RELIANCE','TCS','INFY','HDFCBANK','ICICIBANK','SBIN','ITC','BHARTIARTL','LT','AXISBANK','KOTAKBANK',
+  'HINDUNILVR','MARUTI','BAJFINANCE','BAJAJFINSV','ASIANPAINT','WIPRO','ULTRACEMCO','POWERGRID','HCLTECH','TATAMOTORS',
+  'TATASTEEL','HDFCLIFE','ADANIENT','ADANIPORTS','GRASIM','HINDALCO','ONGC','COALINDIA','DIVISLAB','SUNPHARMA',
+  'TECHM','APOLLOHOSP','CIPLA','BAJAJ_AUTO','HEROMOTOCO','DRREDDY','EICHERMOT','BRITANNIA','JSWSTEEL','M&M'
+]
+
 export default function OptionTracker() {
   const [symbol, setSymbol] = useState('')
   const [strike, setStrike] = useState('')
@@ -33,6 +42,11 @@ export default function OptionTracker() {
   const [resolvedTsym, setResolvedTsym] = useState<string>('')
   const [resolvedToken, setResolvedToken] = useState<number | null>(null)
   const [toast, setToast] = useState<{ message: string; kind?: 'success' | 'error' } | null>(null)
+  const [symbolSuggestions, setSymbolSuggestions] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [activeSuggestion, setActiveSuggestion] = useState(-1)
+  const symbolInputRef = useRef<HTMLInputElement | null>(null)
+  const suggestionBoxRef = useRef<HTMLDivElement | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<number>(0)
@@ -630,6 +644,67 @@ export default function OptionTracker() {
     return () => clearInterval(interval)
   }, [autoUpdate, hasValidToken, optionData])
 
+  // Symbol suggestions effect
+  useEffect(() => {
+    const val = symbol.trim().toUpperCase()
+    if (val.length < 2) {
+      setSymbolSuggestions([])
+      setShowSuggestions(false)
+      setActiveSuggestion(-1)
+      return
+    }
+    const filtered = UNDERLYING_SYMBOLS.filter(s => s.startsWith(val)).slice(0, 8)
+    setSymbolSuggestions(filtered)
+    setShowSuggestions(filtered.length > 0)
+    setActiveSuggestion(-1)
+  }, [symbol])
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (!suggestionBoxRef.current) return
+      if (
+        suggestionBoxRef.current &&
+        !suggestionBoxRef.current.contains(e.target as Node) &&
+        symbolInputRef.current &&
+        !symbolInputRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+    if (showSuggestions) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showSuggestions])
+
+  const acceptSuggestion = (s: string) => {
+    setSymbol(s)
+    setShowSuggestions(false)
+    setActiveSuggestion(-1)
+    // Focus strike input next for quicker flow if exists
+    setTimeout(() => {
+      const strikeEl = document.getElementById('strike-input') as HTMLInputElement | null
+      strikeEl?.focus()
+    }, 0)
+  }
+
+  const onSymbolKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || symbolSuggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveSuggestion(idx => (idx + 1) % symbolSuggestions.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveSuggestion(idx => (idx - 1 + symbolSuggestions.length) % symbolSuggestions.length)
+    } else if (e.key === 'Enter') {
+      if (activeSuggestion >= 0) {
+        e.preventDefault()
+        acceptSuggestion(symbolSuggestions[activeSuggestion])
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Toast */}
@@ -728,17 +803,43 @@ export default function OptionTracker() {
       <div className="bg-white rounded-lg shadow-md p-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Option Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
+          <div className="relative" ref={suggestionBoxRef}>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Stock Symbol
             </label>
             <input
+              ref={symbolInputRef}
               type="text"
               placeholder="e.g., RELIANCE"
               value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              onFocus={() => { if (symbolSuggestions.length) setShowSuggestions(true) }}
+              onKeyDown={onSymbolKeyDown}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              aria-autocomplete="list"
+              aria-expanded={showSuggestions}
+              aria-controls="symbol-suggestions"
             />
+            {showSuggestions && symbolSuggestions.length > 0 && (
+              <ul
+                id="symbol-suggestions"
+                role="listbox"
+                className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg text-sm" >
+                {symbolSuggestions.map((s, i) => (
+                  <li
+                    key={s}
+                    role="option"
+                    aria-selected={i === activeSuggestion}
+                    onMouseDown={(e) => { e.preventDefault(); acceptSuggestion(s) }}
+                    onMouseEnter={() => setActiveSuggestion(i)}
+                    className={`px-3 py-1.5 cursor-pointer flex items-center justify-between ${i === activeSuggestion ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}
+                  >
+                    <span>{s}</span>
+                    {i === activeSuggestion && (<span className="text-[10px] opacity-80">Enter</span>)}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           
           <div>
@@ -750,6 +851,7 @@ export default function OptionTracker() {
               placeholder="e.g., 3000"
               value={strike}
               onChange={(e) => setStrike(e.target.value)}
+              id="strike-input"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
